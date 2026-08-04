@@ -1,0 +1,83 @@
+# Infraestrutura de desenvolvimento local.
+#
+# `pnpm infra:up` sobe apenas postgres e redis, que é o modo de trabalho normal:
+# web e worker rodam nativamente com hot reload. Os serviços de aplicação existem
+# sob o profile `apps` para validar o empacotamento antes do deploy no Railway.
+#
+# A imagem é pgvector/pgvector:pg16 e não postgres:16 porque o §3.1 do PRD exige a
+# extensão `vector`, que a imagem oficial não traz. pgcrypto e pg_trgm vêm do contrib.
+
+services:
+  postgres:
+    # pg18, não pg16. O §3.1 do PRD especifica PostgreSQL 16, mas o Postgres gerenciado do
+    # Railway provisiona 18.4 — e paridade entre desenvolvimento e produção vale mais do que
+    # a aderência ao número da versão. Nada do schema depende de 16: as features que usamos
+    # são RLS, pgcrypto, pg_trgm, pgvector e UNIQUE NULLS NOT DISTINCT (PG15+).
+    # Registrado em docs/desvios-prd.md.
+    image: pgvector/pgvector:pg18
+    container_name: pulse-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: pulse_owner
+      POSTGRES_PASSWORD: pulse_dev_password
+      POSTGRES_DB: pulse
+      # Locale pt-BR para ordenação coerente com o §6.2 (locale default da organização).
+      LANG: pt_BR.utf8
+    ports:
+      - '5432:5432'
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./infra/postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U pulse_owner -d pulse']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: pulse-redis
+    restart: unless-stopped
+    # BullMQ exige noeviction: com LRU o Redis descartaria jobs silenciosamente.
+    command: redis-server --appendonly yes --maxmemory-policy noeviction
+    ports:
+      - '6379:6379'
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  web:
+    profiles: ['apps']
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    env_file: [.env]
+    environment:
+      DATABASE_URL: postgresql://pulse_app:pulse_app_password@postgres:5432/pulse
+      REDIS_URL: redis://redis:6379
+    ports:
+      - '3000:3000'
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+
+  worker:
+    profiles: ['apps']
+    build:
+      context: .
+      dockerfile: apps/worker/Dockerfile
+    env_file: [.env]
+    environment:
+      DATABASE_URL: postgresql://pulse_app:pulse_app_password@postgres:5432/pulse
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+
+volumes:
+  pgdata:
+  redisdata:

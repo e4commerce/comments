@@ -1,0 +1,23 @@
+node_modules/
+.next/
+dist/
+build/
+out/
+coverage/
+
+.env
+.env.*
+!.env.example
+
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+.DS_Store
+.idea/
+*.tsbuildinfo
+.eslintcache
+
+# artefatos locais de banco
+pgdata/
+redisdata/
