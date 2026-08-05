@@ -18,6 +18,5 @@ pnpm-debug.log*
 *.tsbuildinfo
 .eslintcache
 
-# artefatos locais de banco
-pgdata/
-redisdata/
+# banco SQLite local
+data/

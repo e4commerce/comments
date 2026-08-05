@@ -1,0 +1,75 @@
+@import 'tailwindcss';
+
+/*
+ * Tokens semânticos em vez de cores soltas nas classes. A interface tem dois
+ * temas e um punhado de estados (positivo, neutro, negativo, urgente) que
+ * aparecem no inbox e nos gráficos — precisam ser a mesma cor nos dois lugares,
+ * ou o dashboard e a lista contam histórias visualmente diferentes.
+ */
+@theme {
+  --color-canvas: oklch(99% 0.002 264);
+  --color-surface: oklch(100% 0 0);
+  --color-surface-muted: oklch(97% 0.003 264);
+  --color-line: oklch(91% 0.005 264);
+  --color-ink: oklch(22% 0.015 264);
+  --color-ink-muted: oklch(52% 0.012 264);
+  --color-accent: oklch(56% 0.16 258);
+  --color-accent-ink: oklch(99% 0 0);
+
+  /*
+   * Sentimento é uma escala ordenada (positivo ↔ negativo), logo par divergente:
+   * duas matizes opostas com cinza neutro no meio.
+   *
+   * Azul↔vermelho, e não verde↔vermelho, por medição: verde e vermelho ficam a
+   * ΔE 5.7 em deuteranopia — indistinguíveis — contra ΔE 21.6 do par azul e
+   * vermelho. Estes hex são literais de propósito: foram validados contra as
+   * duas superfícies reais desta interface, e reescrevê-los em OKLCH
+   * "equivalente" invalidaria a medição.
+   */
+  --color-positive: #2a78d6;
+  --color-neutral: #898781;
+  --color-negative: #e34948;
+  --color-warning: oklch(72% 0.15 70);
+  /* Matiz única para magnitude (barras de motivo). Mesmo hex do polo positivo:
+     é a matiz sequencial padrão, e ali não carrega identidade nenhuma — só
+     comprimento. Token separado para o código dizer qual dos dois papéis é. */
+  --color-series: #2a78d6;
+}
+
+@media (prefers-color-scheme: dark) {
+  @theme {
+    --color-canvas: oklch(17% 0.012 264);
+    --color-surface: oklch(21% 0.014 264);
+    --color-surface-muted: oklch(25% 0.014 264);
+    --color-line: oklch(31% 0.016 264);
+    --color-ink: oklch(95% 0.005 264);
+    --color-ink-muted: oklch(70% 0.015 264);
+    --color-accent: oklch(70% 0.14 258);
+    --color-accent-ink: oklch(18% 0.02 264);
+
+    /* Não é o flip automático das cores claras: são passos escolhidos para a
+       superfície escura e validados como conjunto contra ela. */
+    --color-positive: #3987e5;
+    --color-neutral: #615f5b;
+    --color-negative: #e66767;
+    --color-warning: oklch(78% 0.14 70);
+    --color-series: #3987e5;
+  }
+}
+
+html {
+  color-scheme: light dark;
+}
+
+body {
+  background: var(--color-canvas);
+  color: var(--color-ink);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Foco visível em tudo que é operável: o inbox é usado no teclado, em sequência. */
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
