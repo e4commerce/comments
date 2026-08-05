@@ -4,9 +4,9 @@ O Pulse roda como **três serviços** mais **dois bancos** no mesmo projeto Rail
 
 | Serviço | O que é | Config |
 | --- | --- | --- |
-| `web` | Next.js: interface, API e endpoint de webhook | **ainda não existe** (resto da Fase 1) |
+| `web` | Next.js: interface, API e endpoint de webhook | `railway.web.json` |
 | `worker` | Consumidores BullMQ. Todo acesso à Graph API e ao OpenRouter passa aqui | `railway.worker.json` |
-| `scheduler` | Jobs recorrentes (reconciliação, tokens, agregação, tópicos, SLA) | `railway.scheduler.json` |
+| `scheduler` | Jobs recorrentes (reconciliação, tokens, agregação, tópicos, SLA). **Não suba ainda:** sem processadores, acumula jobs que falham | `railway.scheduler.json` |
 | `postgres` | PostgreSQL com pgvector | serviço gerenciado |
 | `redis` | Redis com `maxmemory-policy noeviction` | serviço gerenciado |
 
@@ -55,6 +55,7 @@ Em **cada** serviço, defina a variável:
 
 | Serviço | Variável | Valor |
 | --- | --- | --- |
+| `web` | `RAILWAY_CONFIG_FILE` | `railway.web.json` |
 | `worker` | `RAILWAY_CONFIG_FILE` | `railway.worker.json` |
 | `scheduler` | `RAILWAY_CONFIG_FILE` | `railway.scheduler.json` |
 
@@ -138,13 +139,17 @@ Troque `Postgres` e `Redis` pelos nomes reais dos seus serviços nas referência
 | `META_GRAPH_VERSION` | `v26.0` |
 | `NODE_ENV` | `production` |
 | `LOG_LEVEL` | `info` |
-| `META_APP_ID` | `placeholder-nao-configurado` até a Fase 2 |
-| `META_APP_SECRET` | idem |
-| `META_WEBHOOK_VERIFY_TOKEN` | idem |
-| `OPENROUTER_API_KEY` | idem |
 | `OPENROUTER_MODEL_PRIMARY` | `google/gemini-2.5-flash` |
-| `RESEND_API_KEY` | idem |
 | `EMAIL_FROM` | `Pulse <nao-responda@seudominio.com.br>` |
+
+**Deixe VAZIAS ou não crie** até existirem de fato: `META_APP_ID`, `META_APP_SECRET`,
+`META_WEBHOOK_VERIFY_TOKEN`, `OPENROUTER_API_KEY`, `RESEND_API_KEY`. São opcionais no boot e
+exigidas no ponto de uso por `requireMetaConfig()`, `requireOpenRouterConfig()` e
+`requireEmailConfig()`.
+
+**Não use valor de placeholder.** Um `placeholder-nao-configurado` passa pela validação, faz o
+operador acreditar que está configurado, e a falha reaparece na Fase 2 como erro opaco da Graph
+API — longe da causa. Variável ausente falha com o nome dela na mensagem, que é diagnóstico.
 
 ### O que NÃO definir nos serviços
 
