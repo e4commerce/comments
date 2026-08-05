@@ -1,1 +1,0 @@
-ALTER TABLE "accounts" ALTER COLUMN "expires_at" SET DATA TYPE integer;
