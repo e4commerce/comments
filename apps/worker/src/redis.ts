@@ -29,6 +29,11 @@ export function getRedis(): Redis {
     maxRetriesPerRequest: null,
     enableReadyCheck: true,
     retryStrategy: (times) => Math.min(times * 200, 5_000),
+    // `family: 0` resolve IPv4 e IPv6. O default do ioredis é 4, e a rede privada do
+    // Railway é IPv6-only: com o default, conectar pelo domínio interno falha com
+    // ENOTFOUND enquanto o proxy público funciona — sintoma que sugere erro de credencial
+    // quando na verdade é resolução de nome.
+    family: 0,
   });
 
   connection.on('error', (error) => log.error({ err: error }, 'erro de conexão com o Redis'));

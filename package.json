@@ -10,7 +10,7 @@
     "dev": "pnpm --parallel --filter \"./apps/*\" dev",
     "dev:web": "pnpm --filter @pulse/web dev",
     "dev:worker": "pnpm --filter @pulse/worker dev",
-    "build": "pnpm --filter \"./apps/*\" build",
+    "build": "pnpm -r --if-present build",
     "typecheck": "pnpm -r typecheck",
     "lint": "eslint .",
     "format": "prettier --write .",

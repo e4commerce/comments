@@ -50,20 +50,8 @@ services:
       timeout: 3s
       retries: 10
 
-  web:
-    profiles: ['apps']
-    build:
-      context: .
-      dockerfile: apps/web/Dockerfile
-    env_file: [.env]
-    environment:
-      DATABASE_URL: postgresql://pulse_app:pulse_app_password@postgres:5432/pulse
-      REDIS_URL: redis://redis:6379
-    ports:
-      - '3000:3000'
-    depends_on:
-      postgres: { condition: service_healthy }
-      redis: { condition: service_healthy }
+  # O serviço `web` entra aqui quando `apps/web` existir (resto da Fase 1). Declará-lo agora
+  # apontando para um Dockerfile inexistente quebraria `docker compose --profile apps up`.
 
   worker:
     profiles: ['apps']
