@@ -3,7 +3,16 @@
   "build": {
     "builder": "DOCKERFILE",
     "dockerfilePath": "apps/worker/Dockerfile",
-    "watchPatterns": ["apps/worker/**", "packages/**", "package.json", "pnpm-lock.yaml"]
+    "watchPatterns": [
+      "apps/worker/**",
+      "packages/**",
+      "package.json",
+      "pnpm-lock.yaml",
+      "pnpm-workspace.yaml",
+      "tsconfig.base.json",
+      ".npmrc",
+      "railway.scheduler.json"
+    ]
   },
   "deploy": {
     "startCommand": "pnpm --filter @pulse/worker scheduler",

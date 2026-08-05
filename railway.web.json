@@ -3,7 +3,16 @@
   "build": {
     "builder": "DOCKERFILE",
     "dockerfilePath": "apps/web/Dockerfile",
-    "watchPatterns": ["apps/web/**", "packages/**", "package.json", "pnpm-lock.yaml"]
+    "watchPatterns": [
+      "apps/web/**",
+      "packages/**",
+      "package.json",
+      "pnpm-lock.yaml",
+      "pnpm-workspace.yaml",
+      "tsconfig.base.json",
+      ".npmrc",
+      "railway.web.json"
+    ]
   },
   "deploy": {
     "startCommand": "pnpm --filter @pulse/web start",
