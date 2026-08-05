@@ -16,6 +16,7 @@
  */
 
 import { closeDb, pingDb } from '@pulse/db';
+import { getEnv } from '@pulse/shared/env';
 import { createLogger } from '@pulse/shared/logger';
 import { Worker, type Job, type Processor } from 'bullmq';
 import { QUEUE_NAMES, closeQueues, type QueueName } from './queues';
@@ -87,7 +88,27 @@ function dispatch(queue: QueueName): Processor {
 const workers: Worker[] = [];
 
 async function main(): Promise<void> {
-  if (!(await pingDb())) throw new Error('Postgres inacessível; worker não vai subir');
+  // Valida o ambiente ANTES de qualquer conexão, e explicitamente.
+  //
+  // Sem isso, `pingDb()` capturava a exceção de validação junto com as de rede e reportava
+  // tudo como "healthcheck de banco falhou" — uma variável faltando aparecia como problema
+  // de conectividade, o que manda o diagnóstico para o lado errado.
+  const env = getEnv();
+  log.info(
+    {
+      // Só nomes e formas, nunca valores. `host` é seguro e é o que responde à pergunta
+      // "estou apontando para a rede privada ou para o proxy público?".
+      dbHost: safeHost(env.DATABASE_URL),
+      redisHost: safeHost(env.REDIS_URL),
+      graphVersion: env.META_GRAPH_VERSION,
+      metaConfigurado: !env.META_APP_ID.startsWith('placeholder-'),
+      openRouterConfigurado: !env.OPENROUTER_API_KEY.startsWith('placeholder-'),
+      resendConfigurado: !env.RESEND_API_KEY.startsWith('placeholder-'),
+    },
+    'ambiente validado',
+  );
+
+  await waitForDb();
   const redis = await assertRedisReady();
   if (!redis.ok) {
     // Aviso e não erro: `maxmemory-policy` errada é grave, mas derrubar o worker por isso
@@ -124,7 +145,46 @@ async function shutdown(signal: string): Promise<void> {
 process.on('SIGTERM', () => void shutdown('SIGTERM'));
 process.on('SIGINT', () => void shutdown('SIGINT'));
 
+/**
+ * Espera o Postgres ficar acessível, com tentativas.
+ *
+ * Não é paranoia: a rede privada do Railway leva alguns instantes para inicializar depois
+ * que o container sobe, então uma conexão imediata pelo domínio interno falha com ENOTFOUND
+ * mesmo estando tudo correto. O mesmo vale quando o serviço de banco reinicia junto com o
+ * worker. Sem retry, o container entra em crash loop por uma condição transitória.
+ */
+async function waitForDb(attempts = 6): Promise<void> {
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    if (await pingDb()) {
+      if (attempt > 1) log.info({ attempt }, 'Postgres acessível após retentativa');
+      return;
+    }
+    if (attempt === attempts) break;
+    const delay = Math.min(1_000 * 2 ** (attempt - 1), 8_000);
+    log.warn({ attempt, attempts, delayMs: delay }, 'Postgres inacessível; nova tentativa');
+    await new Promise((resolve) => setTimeout(resolve, delay));
+  }
+  throw new Error(
+    `Postgres inacessível após ${String(attempts)} tentativas. ` +
+      'Verifique DATABASE_URL: em rede privada do Railway o host é ' +
+      '${{NomeDoServico.RAILWAY_PRIVATE_DOMAIN}} e o usuário deve ser pulse_app, não postgres.',
+  );
+}
+
+/** Extrai host e porta de uma URL de conexão, descartando credencial. */
+function safeHost(url: string): string {
+  try {
+    const parsed = new URL(url);
+    return `${parsed.hostname}:${parsed.port || '(default)'}`;
+  } catch {
+    return '(url inválida)';
+  }
+}
+
 main().catch((error: unknown) => {
-  log.error({ err: error }, 'worker não conseguiu subir');
+  // A causa entra no texto da mensagem porque agregadores de log costumam exibir apenas
+  // `msg` em linhas JSON. Sem isso, o operador vê "não conseguiu subir" e nada mais.
+  const cause = error instanceof Error ? error.message : String(error);
+  log.error({ err: error }, `worker não conseguiu subir: ${cause}`);
   process.exit(1);
 });

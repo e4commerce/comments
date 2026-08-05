@@ -109,13 +109,20 @@ export async function closeDb(): Promise<void> {
   }
 }
 
-/** Healthcheck usado por `GET /api/health` (§10). */
+/**
+ * Healthcheck usado por `GET /api/health` (§10) e pelo boot do worker.
+ *
+ * A causa vai no texto da mensagem, e não apenas no campo `err`: agregadores de log —
+ * o do Railway entre eles — exibem só `msg` quando a linha é JSON, e um "healthcheck de
+ * banco falhou" sem causa não diz se o problema é rede, credencial ou configuração.
+ */
 export async function pingDb(): Promise<boolean> {
   try {
     await getDb().execute(sql`select 1`);
     return true;
   } catch (error) {
-    log.error({ err: error }, 'healthcheck de banco falhou');
+    const cause = error instanceof Error ? error.message : String(error);
+    log.error({ err: error }, `healthcheck de banco falhou: ${cause}`);
     return false;
   }
 }
