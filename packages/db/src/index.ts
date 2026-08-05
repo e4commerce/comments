@@ -4,6 +4,7 @@ export {
   getSqlClient,
   withOrg,
   withoutOrg,
+  setOrgContext,
   closeDb,
   pingDb,
   type Database,

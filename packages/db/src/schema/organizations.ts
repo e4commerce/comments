@@ -14,6 +14,7 @@
 import { relations, sql } from 'drizzle-orm';
 import {
   index,
+  integer,
   jsonb,
   numeric,
   pgTable,
@@ -115,7 +116,9 @@ export const accounts = pgTable(
     providerAccountId: text('provider_account_id').notNull(),
     refresh_token: text('refresh_token'),
     access_token: text('access_token'),
-    expires_at: numeric('expires_at'),
+    // `integer` e não `numeric`: é um timestamp Unix em segundos, e o adapter do Auth.js
+    // tipa a coluna como PgInteger. Com numeric o build falha na atribuição do adapter.
+    expires_at: integer('expires_at'),
     token_type: text('token_type'),
     scope: text('scope'),
     id_token: text('id_token'),

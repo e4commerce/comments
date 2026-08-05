@@ -10,6 +10,7 @@ export default tseslint.config(
       '**/dist/**',
       '**/coverage/**',
       'packages/db/drizzle/**',
+      '**/next-env.d.ts',
     ],
   },
   js.configs.recommended,
@@ -19,7 +20,10 @@ export default tseslint.config(
       parserOptions: {
         projectService: {
           // Arquivos de configuração na raiz não pertencem a nenhum tsconfig de pacote.
-          allowDefaultProject: ['*.mjs', '*.config.ts', 'vitest.setup.ts'],
+          // Apenas arquivos da raiz que não pertencem a nenhum tsconfig de pacote.
+          // `apps/web/next.config.ts` NÃO entra aqui: ele está no tsconfig do app, e
+          // constar nos dois lugares é erro de configuração para o typescript-eslint.
+          allowDefaultProject: ['*.mjs', 'vitest.config.ts', 'vitest.setup.ts'],
         },
         tsconfigRootDir: import.meta.dirname,
       },

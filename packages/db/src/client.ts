@@ -89,6 +89,21 @@ export async function withOrg<T>(
 }
 
 /**
+ * Define a organização ativa DENTRO de uma transação já aberta.
+ *
+ * Existe para o caso em que a organização é criada na mesma transação em que seus dados
+ * iniciais são gravados — a taxonomia do Apêndice A, por exemplo. `withOrg` não serve ali,
+ * porque exigiria o id antes de a linha existir, e fazer em duas transações deixaria uma
+ * organização sem taxonomia visível se a segunda falhasse.
+ */
+export async function setOrgContext(tx: Transaction, organizationId: string): Promise<void> {
+  if (!UUID_RE.test(organizationId)) {
+    throw new Error(`organizationId inválido: ${organizationId}`);
+  }
+  await tx.execute(sql`select set_config('app.current_org_id', ${organizationId}, true)`);
+}
+
+/**
  * Transação sem organização, para dados que não pertencem a nenhuma: tabelas do Auth.js,
  * `webhook_events` (a organização só é resolvida depois, a partir de `entry.id`) e o
  * próprio cadastro de organizações.

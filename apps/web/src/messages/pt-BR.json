@@ -1,0 +1,91 @@
+{
+  "common": {
+    "appName": "Pulse",
+    "tagline": "Gestão e inteligência de comentários do Meta",
+    "save": "Salvar",
+    "cancel": "Cancelar",
+    "loading": "Carregando…",
+    "back": "Voltar",
+    "signOut": "Sair",
+    "copy": "Copiar",
+    "copied": "Copiado"
+  },
+  "auth": {
+    "signInTitle": "Entrar no Pulse",
+    "signInSubtitle": "Acesse a central de comentários da sua marca.",
+    "signUpTitle": "Criar conta",
+    "signUpSubtitle": "Comece a gerenciar os comentários de Facebook e Instagram.",
+    "email": "E-mail",
+    "password": "Senha",
+    "name": "Nome",
+    "signIn": "Entrar",
+    "signUp": "Criar conta",
+    "orContinueWith": "ou continue com",
+    "google": "Google",
+    "noAccount": "Não tem conta?",
+    "hasAccount": "Já tem conta?",
+    "invalidCredentials": "E-mail ou senha incorretos.",
+    "emailInUse": "Este e-mail já está cadastrado. Tente entrar.",
+    "passwordHint": "Mínimo de 8 caracteres."
+  },
+  "onboarding": {
+    "title": "Crie sua organização",
+    "subtitle": "A organização é a fronteira dos seus dados. Comentários, análises e equipe pertencem a ela.",
+    "orgName": "Nome da organização",
+    "orgNamePlaceholder": "Ex.: Murano Joias",
+    "create": "Criar organização",
+    "taxonomySeeded": "{count} motivos de comentário criados como ponto de partida para a análise de temas."
+  },
+  "invite": {
+    "title": "Você foi convidado",
+    "subtitle": "Você foi convidado para {organization} com o papel de {role}.",
+    "accept": "Aceitar convite",
+    "signInFirst": "Entre ou crie uma conta com {email} para aceitar.",
+    "invalid": "Convite inválido, expirado ou já utilizado.",
+    "accepted": "Convite aceito. Bem-vindo a {organization}.",
+    "wrongAccount": "Este convite é para {email}, mas você está autenticado como {current}."
+  },
+  "team": {
+    "title": "Equipe",
+    "subtitle": "Quem tem acesso a esta organização e com qual papel.",
+    "members": "Membros",
+    "pending": "Convites pendentes",
+    "inviteTitle": "Convidar pessoa",
+    "invite": "Enviar convite",
+    "role": "Papel",
+    "email": "E-mail",
+    "name": "Nome",
+    "lastSeen": "Visto por último",
+    "never": "Nunca",
+    "expiresAt": "Expira em",
+    "revoke": "Revogar",
+    "emailNotSent": "O e-mail não foi enviado porque o Resend não está configurado. Copie o link abaixo e envie manualmente.",
+    "inviteLink": "Link do convite",
+    "noPermission": "Seu papel não permite gerenciar usuários."
+  },
+  "roles": {
+    "owner": "Owner",
+    "admin": "Administrador",
+    "manager": "Coordenador",
+    "agent": "Atendente",
+    "analyst": "Analista",
+    "ownerHint": "Acesso total, incluindo conexões Meta e faturamento.",
+    "adminHint": "Conecta contas Meta, gerencia usuários e configura IA.",
+    "managerHint": "Distribui trabalho, exclui comentários e vê auditoria.",
+    "agentHint": "Responde e oculta comentários. Não exclui.",
+    "analystHint": "Somente dashboards e exportação. Não responde."
+  },
+  "home": {
+    "phaseTitle": "Fase 1 concluída",
+    "phaseBody": "Autenticação, organizações e convites estão funcionando. A central de comentários chega na Fase 4, depois da conexão com o Meta (Fase 2) e da ingestão (Fase 3).",
+    "connectMeta": "Conectar contas Meta",
+    "connectMetaBlocked": "Disponível na Fase 2. Depende de app no Meta App Dashboard com Business Verification concluída.",
+    "team": "Gerenciar equipe",
+    "health": "Saúde do sistema"
+  },
+  "errors": {
+    "generic": "Algo deu errado. Tente novamente.",
+    "unauthorized": "Você precisa entrar para acessar esta página.",
+    "forbidden": "Você não tem permissão para esta ação."
+  }
+}

@@ -13,10 +13,14 @@ Plano de execução por fases: [`docs/PLANO_EXECUCAO.md`](docs/PLANO_EXECUCAO.md
 
 ## Estado atual
 
-**Fase 1 (Fundação), em andamento.** Concluído: monorepo, validação de ambiente, logger com
-redação de segredos, schema completo do §6 com Row Level Security, taxonomia inicial de
-motivos, filas BullMQ e scheduler. Pendente: app Next.js com autenticação, organizações e
-convites.
+**Fase 1 (Fundação) concluída.** Cadastro, login por e-mail/senha e Google, criação de
+organização, convites por e-mail com papéis, schema completo do §6 com Row Level Security,
+taxonomia inicial de motivos, filas BullMQ e scheduler. 69 testes.
+
+**Fase 2 (Conexão com o Meta) bloqueada por processo externo**, não por código: exige app no
+Meta App Dashboard em modo Live, Business Verification concluída e Advanced Access para as
+permissões de páginas e Instagram. Sem isso não há como ingerir um comentário real, e a
+verificação de negócio no Meta leva semanas. Ver `docs/PLANO_EXECUCAO.md`, Seção 7.
 
 ## Arquitetura
 
@@ -36,6 +40,7 @@ seria estourado.
 | --- | --- |
 | `packages/db` | Schema Drizzle, migrations, RLS, seeds |
 | `packages/shared` | Ambiente, logger, e-mail, matriz de permissões |
+| `apps/web` | Next.js: autenticação, organizações, equipe |
 | `packages/meta-client` | Cliente Graph API com rate limit (Fase 3) |
 | `packages/ai` | OpenRouter, prompts versionados, schemas (Fase 5) |
 | `packages/core` | Urgência, SLA, regras de domínio (Fase 4) |

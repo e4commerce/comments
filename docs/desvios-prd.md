@@ -113,3 +113,29 @@ para as demais a falha é explícita no primeiro uso.
 Efeito colateral positivo: `optionalString` trata `''` como ausente, porque painéis de
 configuração gravam variável não preenchida como string vazia. Sem isso o operador veria
 "Required" numa variável que acabou de criar.
+
+## 10. Sessões em JWT, não em banco — §3.1 [NORMATIVO]
+
+**Status:** imposto pela biblioteca; sem alternativa que preserve o outro requisito do mesmo §3.1.
+
+O §3.1 especifica "Auth.js (NextAuth v5) com e-mail/senha e Google" e "Sessões em banco". Os
+dois não coexistem: o provider Credentials do Auth.js é incompatível com
+`session.strategy: 'database'` por desenho da biblioteca — não existe callback onde criar a
+sessão persistida no fluxo de senha, e a lib força JWT quando Credentials está presente.
+
+Como login por e-mail e senha é requisito funcional explícito, a escolha foi JWT.
+
+**Consequências assumidas.** Revogar a sessão de um usuário específico não é possível: exige
+trocar `AUTH_SECRET`, o que derruba todas as sessões, ou esperar a expiração de 30 dias. Isso
+importa quando alguém sai da empresa — na v1 o caminho é remover o membership, o que bloqueia o
+acesso aos dados da organização na primeira requisição, mesmo com o JWT ainda válido.
+
+A tabela `sessions` permanece no schema. Se o login por senha for substituído por SSO em algum
+momento, migrar para sessão em banco passa a ser possível sem alterar o schema.
+
+## 11. shadcn/ui não instalado na Fase 1 — §3.1 [ORIENTATIVO]
+
+O §3.1 lista shadcn/ui. Ele é um gerador de componentes, e gerar dezenas de arquivos para telas
+com dois formulários criaria superfície sem uso. As primitivas em `apps/web/src/components/ui.tsx`
+seguem a mesma API de props, então a instalação na Fase 4 — quando a inbox precisa de dialog,
+dropdown, command, tooltip e virtualização — substitui sem reescrever call sites.

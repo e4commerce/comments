@@ -1,0 +1,91 @@
+{
+  "common": {
+    "appName": "Pulse",
+    "tagline": "Meta comment management and intelligence",
+    "save": "Save",
+    "cancel": "Cancel",
+    "loading": "Loading…",
+    "back": "Back",
+    "signOut": "Sign out",
+    "copy": "Copy",
+    "copied": "Copied"
+  },
+  "auth": {
+    "signInTitle": "Sign in to Pulse",
+    "signInSubtitle": "Access your brand's comment inbox.",
+    "signUpTitle": "Create account",
+    "signUpSubtitle": "Start managing Facebook and Instagram comments.",
+    "email": "Email",
+    "password": "Password",
+    "name": "Name",
+    "signIn": "Sign in",
+    "signUp": "Create account",
+    "orContinueWith": "or continue with",
+    "google": "Google",
+    "noAccount": "No account?",
+    "hasAccount": "Already have an account?",
+    "invalidCredentials": "Incorrect email or password.",
+    "emailInUse": "This email is already registered. Try signing in.",
+    "passwordHint": "Minimum 8 characters."
+  },
+  "onboarding": {
+    "title": "Create your organization",
+    "subtitle": "The organization is your data boundary. Comments, analyses and team belong to it.",
+    "orgName": "Organization name",
+    "orgNamePlaceholder": "e.g. Murano Joias",
+    "create": "Create organization",
+    "taxonomySeeded": "{count} comment reasons created as a starting point for topic analysis."
+  },
+  "invite": {
+    "title": "You've been invited",
+    "subtitle": "You've been invited to {organization} as {role}.",
+    "accept": "Accept invitation",
+    "signInFirst": "Sign in or create an account with {email} to accept.",
+    "invalid": "Invitation is invalid, expired or already used.",
+    "accepted": "Invitation accepted. Welcome to {organization}.",
+    "wrongAccount": "This invitation is for {email}, but you are signed in as {current}."
+  },
+  "team": {
+    "title": "Team",
+    "subtitle": "Who has access to this organization and with which role.",
+    "members": "Members",
+    "pending": "Pending invitations",
+    "inviteTitle": "Invite someone",
+    "invite": "Send invitation",
+    "role": "Role",
+    "email": "Email",
+    "name": "Name",
+    "lastSeen": "Last seen",
+    "never": "Never",
+    "expiresAt": "Expires",
+    "revoke": "Revoke",
+    "emailNotSent": "Email was not sent because Resend is not configured. Copy the link below and send it manually.",
+    "inviteLink": "Invitation link",
+    "noPermission": "Your role does not allow managing users."
+  },
+  "roles": {
+    "owner": "Owner",
+    "admin": "Admin",
+    "manager": "Manager",
+    "agent": "Agent",
+    "analyst": "Analyst",
+    "ownerHint": "Full access, including Meta connections and billing.",
+    "adminHint": "Connects Meta accounts, manages users and configures AI.",
+    "managerHint": "Assigns work, deletes comments and views audit trail.",
+    "agentHint": "Replies to and hides comments. Cannot delete.",
+    "analystHint": "Dashboards and exports only. Cannot reply."
+  },
+  "home": {
+    "phaseTitle": "Phase 1 complete",
+    "phaseBody": "Authentication, organizations and invitations are working. The comment inbox arrives in Phase 4, after Meta connection (Phase 2) and ingestion (Phase 3).",
+    "connectMeta": "Connect Meta accounts",
+    "connectMetaBlocked": "Available in Phase 2. Requires a Meta App Dashboard app with completed Business Verification.",
+    "team": "Manage team",
+    "health": "System health"
+  },
+  "errors": {
+    "generic": "Something went wrong. Please try again.",
+    "unauthorized": "You need to sign in to access this page.",
+    "forbidden": "You don't have permission for this action."
+  }
+}
