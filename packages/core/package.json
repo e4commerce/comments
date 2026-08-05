@@ -1,0 +1,23 @@
+{
+  "name": "@pulse/core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./urgency": "./src/urgency.ts",
+    "./sla": "./src/sla.ts",
+    "./normalize": "./src/normalize.ts",
+    "./rules": "./src/rules.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@pulse/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.5",
+    "typescript": "^5.7.2"
+  }
+}
