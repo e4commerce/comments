@@ -32,6 +32,23 @@ Não adicionamos um script `start` na raiz de propósito: ele teria que escolher
 worker arbitrariamente, e mascararia o problema real em vez de resolvê-lo. Cada serviço declara
 o que executa.
 
+### Sobre watchPatterns: removido de propósito
+
+Os `railway.*.json` **não declaram `watchPatterns`**, e isso é decisão, não esquecimento.
+
+Com eles configurados, o Railway marcava commits como **`skipped`** — nenhum arquivo alterado
+casava com os padrões, e o deploy simplesmente não acontecia. Duas causas se somaram: o próprio
+arquivo de config não constava nos seus padrões (então mudar a configuração de deploy não
+disparava deploy), e a sintaxe de glob do Railway parece exigir barra inicial (`/packages/**`),
+o que não é verificável de fora da plataforma.
+
+O ganho de watchPatterns é modesto: evitar que uma mudança só na interface redeploye o worker.
+O custo, quando erra, é deploy que nunca acontece e ninguém entende por quê. Para um projeto
+neste estágio, redeployar os três serviços a cada commit é a troca certa.
+
+Se quiser reintroduzir mais adiante, faça pela UI do Railway em Settings → Build → Watch Paths,
+onde o efeito é visível imediatamente, em vez de por arquivo que só falha no próximo push.
+
 ### Como apontar cada serviço para sua config
 
 Em **cada** serviço, defina a variável:

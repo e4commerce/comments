@@ -2,17 +2,7 @@
   "$schema": "https://railway.com/railway.schema.json",
   "build": {
     "builder": "DOCKERFILE",
-    "dockerfilePath": "apps/worker/Dockerfile",
-    "watchPatterns": [
-      "apps/worker/**",
-      "packages/**",
-      "package.json",
-      "pnpm-lock.yaml",
-      "pnpm-workspace.yaml",
-      "tsconfig.base.json",
-      ".npmrc",
-      "railway.worker.json"
-    ]
+    "dockerfilePath": "apps/worker/Dockerfile"
   },
   "deploy": {
     "startCommand": "pnpm --filter @pulse/worker start",
