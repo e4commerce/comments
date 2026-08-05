@@ -128,12 +128,20 @@ const schema = z
       decodedLength = -1;
     }
     if (decodedLength !== 32) {
+      // O comprimento em CARACTERES entra na mensagem junto com o de bytes porque
+      // `Buffer.from(x, 'base64')` é permissivo: ele descarta silenciosamente qualquer
+      // caractere inválido em vez de lançar. Colar o comando em vez da saída dele, ou um
+      // valor truncado, produz uma chave curta e não um erro de formato — e sem o número de
+      // caracteres o operador não tem como perceber que colou a coisa errada.
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ['ENCRYPTION_KEY'],
         message:
-          `deve ser 32 bytes em base64 (recebido: ${decodedLength < 0 ? 'base64 inválido' : `${decodedLength} bytes`}). ` +
-          'Gere com: openssl rand -base64 32',
+          `deve ser 32 bytes em base64, o que dá 44 caracteres terminando em "=". ` +
+          `Recebido: ${String(val.ENCRYPTION_KEY.length)} caracteres, ` +
+          `${decodedLength < 0 ? 'base64 inválido' : `${String(decodedLength)} bytes`}. ` +
+          'Gere com `openssl rand -base64 32` e cole a SAÍDA do comando, a linha inteira. ' +
+          'Se o banco já tem tokens cifrados, use a MESMA chave: trocá-la os torna ilegíveis.',
       });
     }
 

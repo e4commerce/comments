@@ -74,6 +74,15 @@ describe('validação de ambiente (§3.4)', () => {
     expect(() => getEnv()).toThrowError(/ENCRYPTION_KEY.*16 bytes/s);
   });
 
+  it('reporta o comprimento em CARACTERES, não só em bytes', () => {
+    // Buffer.from(x, 'base64') descarta caracteres inválidos em silêncio, então colar o
+    // comando em vez da saída dele gera uma chave curta e não um erro de formato. Sem o
+    // número de caracteres na mensagem, o operador não percebe que colou a coisa errada.
+    process.env.ENCRYPTION_KEY = 'openssl rand -base64 32';
+    resetEnvCache();
+    expect(() => getEnv()).toThrowError(/23 caracteres/);
+  });
+
   it('aceita ENCRYPTION_KEY de 32 bytes', () => {
     process.env.ENCRYPTION_KEY = Buffer.alloc(32, 9).toString('base64');
     resetEnvCache();
