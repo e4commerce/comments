@@ -19,6 +19,7 @@ import { closeDb, pingDb } from '@pulse/db';
 import { getEnv, getIntegrationStatus } from '@pulse/shared/env';
 import { createLogger } from '@pulse/shared/logger';
 import { Worker, type Job, type Processor } from 'bullmq';
+import { startHealthServer } from './health-server';
 import { QUEUE_NAMES, closeQueues, type QueueName } from './queues';
 import { assertRedisReady, closeRedis, getRedis } from './redis';
 
@@ -86,6 +87,7 @@ function dispatch(queue: QueueName): Processor {
 }
 
 const workers: Worker[] = [];
+let healthServer: ReturnType<typeof startHealthServer> | undefined;
 
 async function main(): Promise<void> {
   // Valida o ambiente ANTES de qualquer conexão, e explicitamente.
@@ -125,6 +127,8 @@ async function main(): Promise<void> {
     );
   }
 
+  healthServer = startHealthServer();
+
   log.info(
     { queues: Object.values(QUEUE_NAMES), processadoresRegistrados: processors.size },
     'worker no ar',
@@ -133,8 +137,11 @@ async function main(): Promise<void> {
 
 async function shutdown(signal: string): Promise<void> {
   log.info({ signal }, 'encerrando worker');
-  // Fecha os workers primeiro: isso deixa os jobs em execução terminarem em vez de
-  // devolvê-los à fila como stalled, o que causaria reprocessamento desnecessário.
+  // O servidor de saúde fecha primeiro: a partir daqui o processo está saindo, e continuar
+  // respondendo 200 faria a plataforma seguir roteando healthcheck para um serviço em queda.
+  healthServer?.close();
+  // Depois os workers: isso deixa os jobs em execução terminarem em vez de devolvê-los à
+  // fila como stalled, o que causaria reprocessamento desnecessário.
   await Promise.all(workers.map((worker) => worker.close()));
   await closeQueues();
   await closeRedis();
