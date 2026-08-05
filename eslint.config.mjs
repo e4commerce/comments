@@ -38,7 +38,9 @@ export default tseslint.config(
       '@typescript-eslint/no-misused-promises': 'error',
       // §11.3 do PRD: nenhum segredo em log. console.log escapa da redação do Pino.
       'no-console': ['error', { allow: ['warn', 'error'] }],
-      eqeqeq: ['error', 'always'],
+      // `== null` é a checagem nullish idiomática e cobre null e undefined de uma vez;
+      // exigir `=== null || === undefined` só alonga o código sem ganho.
+      eqeqeq: ['error', 'always', { null: 'ignore' }],
     },
   },
   {
