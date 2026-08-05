@@ -1,4 +1,17 @@
-export { getEnv, getDerived, resetEnvCache, EMBEDDING_DIMENSIONS, type Env } from './env';
+export {
+  getEnv,
+  getDerived,
+  resetEnvCache,
+  requireMetaConfig,
+  requireOpenRouterConfig,
+  requireEmailConfig,
+  getIntegrationStatus,
+  EMBEDDING_DIMENSIONS,
+  type Env,
+  type MetaConfig,
+  type OpenRouterConfig,
+  type EmailConfig,
+} from './env';
 export {
   getLogger,
   createLogger,

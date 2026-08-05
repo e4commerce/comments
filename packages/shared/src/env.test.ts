@@ -1,5 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { getEnv, getDerived, resetEnvCache, EMBEDDING_DIMENSIONS } from './env';
+import {
+  getEnv,
+  getDerived,
+  resetEnvCache,
+  requireMetaConfig,
+  requireOpenRouterConfig,
+  requireEmailConfig,
+  getIntegrationStatus,
+  EMBEDDING_DIMENSIONS,
+} from './env';
 
 const original = { ...process.env };
 
@@ -24,8 +33,8 @@ describe('validação de ambiente (§3.4)', () => {
 
   it('falha listando TODAS as variáveis obrigatórias ausentes, não só a primeira', () => {
     delete process.env.DATABASE_URL;
-    delete process.env.META_APP_SECRET;
-    delete process.env.OPENROUTER_API_KEY;
+    delete process.env.REDIS_URL;
+    delete process.env.AUTH_SECRET;
     resetEnvCache();
 
     try {
@@ -34,9 +43,29 @@ describe('validação de ambiente (§3.4)', () => {
     } catch (error) {
       const message = (error as Error).message;
       expect(message).toContain('DATABASE_URL');
-      expect(message).toContain('META_APP_SECRET');
-      expect(message).toContain('OPENROUTER_API_KEY');
+      expect(message).toContain('REDIS_URL');
+      expect(message).toContain('AUTH_SECRET');
     }
+  });
+
+  it('sobe sem as credenciais de integração: elas são exigidas no ponto de uso', () => {
+    delete process.env.META_APP_ID;
+    delete process.env.META_APP_SECRET;
+    delete process.env.META_WEBHOOK_VERIFY_TOKEN;
+    delete process.env.OPENROUTER_API_KEY;
+    delete process.env.RESEND_API_KEY;
+    delete process.env.EMAIL_FROM;
+    resetEnvCache();
+    expect(() => getEnv()).not.toThrow();
+  });
+
+  it('trata string vazia como ausente — painéis de config gravam "" e não undefined', () => {
+    process.env.META_APP_ID = '';
+    process.env.AUTH_GOOGLE_ID = '   ';
+    resetEnvCache();
+    const env = getEnv();
+    expect(env.META_APP_ID).toBeUndefined();
+    expect(env.AUTH_GOOGLE_ID).toBeUndefined();
   });
 
   it('rejeita ENCRYPTION_KEY que não decodifica para exatamente 32 bytes', () => {
@@ -94,6 +123,65 @@ describe('validação de ambiente (§3.4)', () => {
     delete process.env.DATABASE_URL_MIGRATOR;
     resetEnvCache();
     expect(() => getEnv()).not.toThrow();
+  });
+});
+
+describe('exigência no ponto de uso', () => {
+  beforeEach(reset);
+  afterEach(reset);
+
+  it('requireMetaConfig lança nomeando o que falta e a fase que precisa', () => {
+    delete process.env.META_APP_SECRET;
+    delete process.env.META_WEBHOOK_VERIFY_TOKEN;
+    resetEnvCache();
+    try {
+      requireMetaConfig();
+      expect.unreachable('deveria ter lançado');
+    } catch (error) {
+      const message = (error as Error).message;
+      expect(message).toContain('META_APP_SECRET');
+      expect(message).toContain('META_WEBHOOK_VERIFY_TOKEN');
+      expect(message).not.toContain('META_APP_ID');
+      expect(message).toContain('Fase 2');
+    }
+  });
+
+  it('requireMetaConfig devolve a configuração quando presente', () => {
+    process.env.META_APP_ID = 'app-id-de-teste';
+    process.env.META_APP_SECRET = 'app-secret-de-teste';
+    process.env.META_WEBHOOK_VERIFY_TOKEN = 'verify-token-de-teste';
+    resetEnvCache();
+
+    const config = requireMetaConfig();
+    expect(config.appId).toBe('app-id-de-teste');
+    expect(config.appSecret).toBe('app-secret-de-teste');
+    expect(config.webhookVerifyToken).toBe('verify-token-de-teste');
+    expect(config.graphVersion).toBe('v26.0');
+    expect(config.timeoutMs).toBe(15_000);
+  });
+
+  it('requireOpenRouterConfig aponta a Fase 5 e usa APP_URL como referer', () => {
+    expect(requireOpenRouterConfig().referer).toBe(getEnv().APP_URL);
+    delete process.env.OPENROUTER_API_KEY;
+    resetEnvCache();
+    expect(() => requireOpenRouterConfig()).toThrowError(/OPENROUTER_API_KEY.*Fase 5/s);
+  });
+
+  it('requireEmailConfig aponta a Fase 1, onde os convites são entregáveis', () => {
+    delete process.env.RESEND_API_KEY;
+    resetEnvCache();
+    expect(() => requireEmailConfig()).toThrowError(/RESEND_API_KEY.*Fase 1/s);
+  });
+
+  it('getIntegrationStatus reporta configuração sem expor valor', () => {
+    delete process.env.OPENROUTER_API_KEY;
+    delete process.env.AUTH_GOOGLE_ID;
+    resetEnvCache();
+    const status = getIntegrationStatus();
+    expect(status.meta).toBe(true);
+    expect(status.openRouter).toBe(false);
+    expect(status.google).toBe(false);
+    expect(JSON.stringify(status)).not.toContain('test-');
   });
 });
 

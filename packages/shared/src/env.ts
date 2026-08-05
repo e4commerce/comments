@@ -36,6 +36,18 @@ const booleanish = z
   .enum(['true', 'false', '1', '0'])
   .transform((v) => v === 'true' || v === '1');
 
+/**
+ * String opcional que trata `''` como ausente.
+ *
+ * Painéis de configuração — o do Railway entre eles — gravam variável não preenchida como
+ * string vazia, não como ausente. Sem este tratamento, `z.string().min(1).optional()`
+ * rejeitaria `''` e o operador veria "Required" numa variável que ele acabou de criar.
+ */
+const optionalString = z.preprocess(
+  (value) => (typeof value === 'string' && value.trim() === '' ? undefined : value),
+  z.string().min(1).optional(),
+);
+
 const schema = z
   .object({
     NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
@@ -52,18 +64,30 @@ const schema = z
 
     // --- Aplicação ---------------------------------------------------------
     APP_URL: z.string().url(),
-    AUTH_SECRET: z.string().min(32, 'AUTH_SECRET precisa de no mínimo 32 caracteres'),
-    AUTH_GOOGLE_ID: z.string().optional(),
-    AUTH_GOOGLE_SECRET: z.string().optional(),
+    AUTH_SECRET: z
+      .string()
+      .min(32, 'precisa de no mínimo 32 caracteres. Gere com: openssl rand -base64 32'),
+    AUTH_GOOGLE_ID: optionalString,
+    AUTH_GOOGLE_SECRET: optionalString,
 
-    // --- E-mail ------------------------------------------------------------
-    RESEND_API_KEY: z.string().min(1),
-    EMAIL_FROM: z.string().min(3),
+    // --- Integrações externas ----------------------------------------------
+    //
+    // O §3.4 marca estas como obrigatórias, e são — para o sistema completo. Aqui elas são
+    // OPCIONAIS no schema e exigidas no ponto de uso, por `requireMetaConfig()`,
+    // `requireOpenRouterConfig()` e `requireEmailConfig()`.
+    //
+    // O motivo é concreto: exigi-las no boot durante a implementação faseada forçaria
+    // preencher com valores falsos as credenciais de integrações que nenhum código ainda
+    // consome. E um placeholder em produção é PIOR que um valor ausente — ele passa pela
+    // validação e falha depois como erro opaco da Graph API, longe da causa. Exigir no
+    // ponto de uso dá a mensagem certa no momento certo.
+    RESEND_API_KEY: optionalString,
+    EMAIL_FROM: optionalString,
 
     // --- Meta --------------------------------------------------------------
-    META_APP_ID: z.string().min(1),
-    META_APP_SECRET: z.string().min(1),
-    META_WEBHOOK_VERIFY_TOKEN: z.string().min(1),
+    META_APP_ID: optionalString,
+    META_APP_SECRET: optionalString,
+    META_WEBHOOK_VERIFY_TOKEN: optionalString,
     META_GRAPH_VERSION: z
       .string()
       .regex(/^v\d+\.\d+$/, 'META_GRAPH_VERSION deve ter a forma vNN.N, por exemplo v26.0')
@@ -74,8 +98,8 @@ const schema = z
     ENCRYPTION_KEY: z.string().min(1),
 
     // --- OpenRouter --------------------------------------------------------
-    OPENROUTER_API_KEY: z.string().min(1),
-    OPENROUTER_MODEL_PRIMARY: z.string().min(1),
+    OPENROUTER_API_KEY: optionalString,
+    OPENROUTER_MODEL_PRIMARY: z.string().min(1).default('google/gemini-2.5-flash'),
     OPENROUTER_MODEL_FALLBACK: z.string().optional(),
     OPENROUTER_MODEL_REASONING: z.string().optional(),
     OPENROUTER_EMBEDDING_MODEL: z.string().default('openai/text-embedding-3-small'),
@@ -188,6 +212,91 @@ export function resetEnvCache(): void {
 /**
  * Derivados que mais de um pacote precisa, centralizados para não divergirem.
  */
+/**
+ * Exigências no ponto de uso.
+ *
+ * Cada função abaixo é a fronteira entre "o processo sobe" e "esta integração funciona".
+ * Chame no início do módulo que realmente fala com o serviço externo — não no boot.
+ */
+
+function missingFrom(env: Env, keys: (keyof Env)[]): string[] {
+  return keys.filter((key) => env[key] === undefined).map(String);
+}
+
+function integrationError(integration: string, missing: string[], fase: string): Error {
+  return new Error(
+    `${integration} não está configurado: ${missing.join(', ')} ` +
+      `${missing.length === 1 ? 'está ausente' : 'estão ausentes'}. ` +
+      `Necessário a partir da Fase ${fase}. Ver .env.example e docs/deploy-railway.md.`,
+  );
+}
+
+export interface MetaConfig {
+  appId: string;
+  appSecret: string;
+  webhookVerifyToken: string;
+  graphVersion: string;
+  timeoutMs: number;
+}
+
+export function requireMetaConfig(env: Env = getEnv()): MetaConfig {
+  const missing = missingFrom(env, ['META_APP_ID', 'META_APP_SECRET', 'META_WEBHOOK_VERIFY_TOKEN']);
+  if (missing.length > 0) throw integrationError('Meta / Graph API', missing, '2');
+  return {
+    // Os non-null são seguros: `missingFrom` acabou de garantir que estão presentes.
+    appId: env.META_APP_ID as string,
+    appSecret: env.META_APP_SECRET as string,
+    webhookVerifyToken: env.META_WEBHOOK_VERIFY_TOKEN as string,
+    graphVersion: env.META_GRAPH_VERSION,
+    timeoutMs: env.META_API_TIMEOUT_MS,
+  };
+}
+
+export interface OpenRouterConfig {
+  apiKey: string;
+  modelPrimary: string;
+  modelFallback: string | undefined;
+  modelReasoning: string | undefined;
+  embeddingModel: string;
+  appTitle: string;
+  referer: string;
+}
+
+export function requireOpenRouterConfig(env: Env = getEnv()): OpenRouterConfig {
+  const missing = missingFrom(env, ['OPENROUTER_API_KEY']);
+  if (missing.length > 0) throw integrationError('OpenRouter', missing, '5');
+  return {
+    apiKey: env.OPENROUTER_API_KEY as string,
+    modelPrimary: env.OPENROUTER_MODEL_PRIMARY,
+    modelFallback: env.OPENROUTER_MODEL_FALLBACK,
+    modelReasoning: env.OPENROUTER_MODEL_REASONING,
+    embeddingModel: env.OPENROUTER_EMBEDDING_MODEL,
+    appTitle: env.OPENROUTER_APP_TITLE,
+    referer: env.APP_URL,
+  };
+}
+
+export interface EmailConfig {
+  apiKey: string;
+  from: string;
+}
+
+export function requireEmailConfig(env: Env = getEnv()): EmailConfig {
+  const missing = missingFrom(env, ['RESEND_API_KEY', 'EMAIL_FROM']);
+  if (missing.length > 0) throw integrationError('Envio de e-mail (Resend)', missing, '1');
+  return { apiKey: env.RESEND_API_KEY as string, from: env.EMAIL_FROM as string };
+}
+
+/** Diagnóstico de boot: quais integrações estão configuradas. Sem valores, só nomes. */
+export function getIntegrationStatus(env: Env = getEnv()) {
+  return {
+    meta: env.META_APP_ID !== undefined && env.META_APP_SECRET !== undefined,
+    openRouter: env.OPENROUTER_API_KEY !== undefined,
+    email: env.RESEND_API_KEY !== undefined && env.EMAIL_FROM !== undefined,
+    google: env.AUTH_GOOGLE_ID !== undefined,
+  } as const;
+}
+
 export function getDerived(env: Env = getEnv()) {
   return {
     graphBaseUrl: `https://graph.facebook.com/${env.META_GRAPH_VERSION}`,

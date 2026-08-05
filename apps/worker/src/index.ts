@@ -16,7 +16,7 @@
  */
 
 import { closeDb, pingDb } from '@pulse/db';
-import { getEnv } from '@pulse/shared/env';
+import { getEnv, getIntegrationStatus } from '@pulse/shared/env';
 import { createLogger } from '@pulse/shared/logger';
 import { Worker, type Job, type Processor } from 'bullmq';
 import { QUEUE_NAMES, closeQueues, type QueueName } from './queues';
@@ -101,9 +101,9 @@ async function main(): Promise<void> {
       dbHost: safeHost(env.DATABASE_URL),
       redisHost: safeHost(env.REDIS_URL),
       graphVersion: env.META_GRAPH_VERSION,
-      metaConfigurado: !env.META_APP_ID.startsWith('placeholder-'),
-      openRouterConfigurado: !env.OPENROUTER_API_KEY.startsWith('placeholder-'),
-      resendConfigurado: !env.RESEND_API_KEY.startsWith('placeholder-'),
+      // Integrações não configuradas não impedem o boot: são exigidas no ponto de uso, pelas
+      // funções require* de @pulse/shared/env. O worker da Fase 1 não fala com nenhuma delas.
+      integracoes: getIntegrationStatus(env),
     },
     'ambiente validado',
   );

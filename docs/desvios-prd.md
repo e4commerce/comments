@@ -88,3 +88,28 @@ O preâmbulo do §6 diz que todas as tabelas têm as duas colunas; o DDL de `com
 O §3.3 lista os quatro serviços. `postgres` e `redis` sobem por padrão; `web` e `worker`
 ficam sob o profile `apps`, porque o modo normal de desenvolvimento é rodá-los nativamente
 com hot reload. `docker compose --profile apps up` sobe os quatro. §3.3 é [ORIENTATIVO].
+
+## 9. Credenciais de integração exigidas no ponto de uso, não no boot — §3.4 [NORMATIVO]
+
+**Status:** decidido pelo agente em 05/08/2026, após o quarto ciclo de deploy travado por isso.
+
+O §3.4 marca `META_APP_ID`, `META_APP_SECRET`, `META_WEBHOOK_VERIFY_TOKEN`,
+`OPENROUTER_API_KEY` e `RESEND_API_KEY` como obrigatórias, e elas são — para o sistema
+completo. No schema de validação, porém, passaram a ser opcionais, e são exigidas por
+`requireMetaConfig()`, `requireOpenRouterConfig()` e `requireEmailConfig()` no módulo que
+efetivamente fala com cada serviço.
+
+**Por quê.** Exigi-las no boot durante uma implementação faseada obriga a preencher com valores
+falsos as credenciais de integrações que nenhum código consome ainda. E um placeholder em
+produção é **pior** que um valor ausente: passa pela validação, o operador acredita que está
+configurado, e a falha aparece depois como erro opaco da Graph API — longe da causa. Exigir no
+ponto de uso dá a mensagem certa no momento certo, nomeando a variável e a fase que a precisa.
+
+O comportamento observável que o §3.4 quer preservar — "falhando de forma explícita se alguma
+obrigatória estiver ausente" — é mantido: continua valendo para tudo que o processo realmente
+precisa para subir (`DATABASE_URL`, `REDIS_URL`, `APP_URL`, `AUTH_SECRET`, `ENCRYPTION_KEY`), e
+para as demais a falha é explícita no primeiro uso.
+
+Efeito colateral positivo: `optionalString` trata `''` como ausente, porque painéis de
+configuração gravam variável não preenchida como string vazia. Sem isso o operador veria
+"Required" numa variável que acabou de criar.

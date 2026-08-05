@@ -9,7 +9,7 @@
  */
 
 import { Resend } from 'resend';
-import { getEnv } from './env';
+import { getEnv, requireEmailConfig } from './env';
 import { createLogger } from './logger';
 
 export interface EmailMessage {
@@ -86,16 +86,36 @@ class ConsoleSender implements EmailSender {
 
 let sender: EmailSender | undefined;
 
+/**
+ * Devolve o remetente apropriado.
+ *
+ * Sem `RESEND_API_KEY` configurada, cai no `ConsoleSender` em vez de lançar: isso mantém o
+ * fluxo de convite da Fase 1 testável antes de existir chave e domínio verificado no Resend,
+ * com o link aparecendo no log. Em produção, um aviso é emitido — e-mail que não sai é falha
+ * silenciosa, então precisa ao menos deixar rastro.
+ */
 export function getEmailSender(): EmailSender {
   if (sender) return sender;
 
   const env = getEnv();
-  // A chave de teste do vitest.setup.ts não deve tentar rede.
-  const isPlaceholder = env.RESEND_API_KEY.startsWith('test-');
-  sender =
-    isPlaceholder || env.NODE_ENV === 'test'
-      ? new ConsoleSender()
-      : new ResendSender(env.RESEND_API_KEY, env.EMAIL_FROM);
+  const canSend =
+    env.NODE_ENV !== 'test' &&
+    env.RESEND_API_KEY !== undefined &&
+    env.EMAIL_FROM !== undefined &&
+    !env.RESEND_API_KEY.startsWith('test-');
+
+  if (canSend) {
+    const { apiKey, from } = requireEmailConfig(env);
+    sender = new ResendSender(apiKey, from);
+  } else {
+    if (env.NODE_ENV === 'production') {
+      createLogger('email').warn(
+        'RESEND_API_KEY ou EMAIL_FROM ausentes em produção: convites e alertas não serão ' +
+          'enviados, apenas registrados em log.',
+      );
+    }
+    sender = new ConsoleSender();
+  }
   return sender;
 }
 
