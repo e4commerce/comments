@@ -2,6 +2,7 @@ import { existsSync, mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import Database from 'better-sqlite3';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
+import { normalizeCommentFilterText } from '@/lib/comment-filters';
 import * as schema from './schema';
 
 /**
@@ -30,6 +31,13 @@ function open(): Database.Database {
   // em memória não suporta WAL e existe somente no processo temporário de build.
   if (!isBuild) conn.pragma('journal_mode = WAL');
   conn.pragma('foreign_keys = ON');
+  // O lower() nativo do SQLite não cobre bem caracteres Unicode. Esta função
+  // mantém filtros como "PÉSSIMO" insensíveis a maiúsculas e minúsculas.
+  conn.function(
+    'mc_normalize_comment_text',
+    { deterministic: true },
+    (value: string | null) => normalizeCommentFilterText(value ?? ''),
+  );
   // A sincronização escreve em lote enquanto a interface lê; sem isto, um
   // "database is locked" aparece como erro de página em vez de esperar.
   conn.pragma('busy_timeout = 5000');

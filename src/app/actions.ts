@@ -3,8 +3,17 @@
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { and, count, eq } from 'drizzle-orm';
-import { type Comment, accounts, actionLog, comments, db, users } from '@/db';
+import {
+  type Comment,
+  accounts,
+  actionLog,
+  commentFilters,
+  comments,
+  db,
+  users,
+} from '@/db';
 import { analyzePending, summarizeMotives } from '@/lib/ai';
+import { normalizeCommentFilterText } from '@/lib/comment-filters';
 import { decrypt } from '@/lib/crypto';
 import * as meta from '@/lib/meta/api';
 import { GraphError } from '@/lib/meta/client';
@@ -223,6 +232,46 @@ export async function setStatus(
   await db.update(comments).set({ status }).where(eq(comments.id, commentId));
   revalidatePath('/inbox');
   return ok();
+}
+
+// --- Filtros globais da fila -------------------------------------------------
+
+export async function addCommentFilter(
+  _previous: ActionResult | null,
+  formData: FormData,
+): Promise<ActionResult> {
+  await requireAdmin();
+
+  const pattern = String(formData.get('pattern') ?? '').trim();
+  if (!pattern) return fail('Digite uma palavra, número ou frase para filtrar.');
+  if (pattern.length > 100) return fail('O filtro pode ter no máximo 100 caracteres.');
+
+  const normalizedPattern = normalizeCommentFilterText(pattern);
+  const existing = await db
+    .select({ id: commentFilters.id })
+    .from(commentFilters)
+    .where(eq(commentFilters.normalizedPattern, normalizedPattern))
+    .get();
+  if (existing) return fail('Este filtro já foi adicionado.');
+
+  await db.insert(commentFilters).values({ pattern, normalizedPattern });
+  revalidatePath('/inbox');
+  return ok('Filtro adicionado. Os comentários correspondentes já foram ocultados da fila.');
+}
+
+export async function removeCommentFilter(filterId: string): Promise<ActionResult> {
+  await requireAdmin();
+
+  const existing = await db
+    .select({ id: commentFilters.id })
+    .from(commentFilters)
+    .where(eq(commentFilters.id, filterId))
+    .get();
+  if (!existing) return fail('Filtro não encontrado.');
+
+  await db.delete(commentFilters).where(eq(commentFilters.id, filterId));
+  revalidatePath('/inbox');
+  return ok('Filtro removido. Os comentários correspondentes voltaram para a fila.');
 }
 
 // --- Sincronização e análise -------------------------------------------------

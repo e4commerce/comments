@@ -1,5 +1,13 @@
 import { type SQL, and, count, desc, eq, gte, inArray, isNull, like, ne, sql } from 'drizzle-orm';
-import { type Comment, accounts, comments, db, posts } from '@/db';
+import {
+  type Comment,
+  type CommentFilter,
+  accounts,
+  commentFilters,
+  comments,
+  db,
+  posts,
+} from '@/db';
 
 /**
  * Leituras da interface. Ficam juntas aqui para que inbox e dashboard usem
@@ -25,8 +33,19 @@ export interface InboxFilters {
   days?: number;
 }
 
-function buildWhere(filters: InboxFilters): SQL {
+type CommentFilterRule = Pick<CommentFilter, 'normalizedPattern'>;
+
+function buildWhere(filters: InboxFilters, commentFilterRules: CommentFilterRule[]): SQL {
   const clauses: SQL[] = [moderatable()];
+
+  // `instr`, em vez de LIKE, faz com que caracteres como `%` e `_` sejam
+  // tratados literalmente. Assim qualquer texto cadastrado pelo ADM significa
+  // exatamente o que está escrito na regra.
+  for (const rule of commentFilterRules) {
+    clauses.push(
+      sql`instr(mc_normalize_comment_text(coalesce(${comments.message}, '')), ${rule.normalizedPattern}) = 0`,
+    );
+  }
 
   if (filters.status && filters.status !== 'all') {
     clauses.push(eq(comments.status, filters.status));
@@ -73,8 +92,9 @@ const PAGE_SIZE = 25;
 export async function listInbox(
   filters: InboxFilters,
   page = 0,
+  commentFilterRules: CommentFilterRule[] = [],
 ): Promise<{ items: InboxItem[]; total: number; hasMore: boolean }> {
-  const where = buildWhere(filters);
+  const where = buildWhere(filters, commentFilterRules);
 
   const totalRow = await db.select({ value: count() }).from(comments).where(where).get();
   const total = totalRow?.value ?? 0;
@@ -253,12 +273,19 @@ export async function listAccountOptions(): Promise<{ id: string; name: string }
   return db.select({ id: accounts.id, name: accounts.name }).from(accounts).orderBy(accounts.name).all();
 }
 
+/** Regras globais que retiram comentários da fila sem apagar o histórico. */
+export async function listCommentFilters(): Promise<CommentFilter[]> {
+  return db.select().from(commentFilters).orderBy(commentFilters.createdAt).all();
+}
+
 /** Contagem por status, para os contadores das abas do inbox. */
-export async function countsByStatus(): Promise<Record<string, number>> {
+export async function countsByStatus(
+  commentFilterRules: CommentFilterRule[] = [],
+): Promise<Record<string, number>> {
   const rows = await db
     .select({ status: comments.status, count: count() })
     .from(comments)
-    .where(moderatable())
+    .where(buildWhere({}, commentFilterRules))
     .groupBy(comments.status)
     .all();
 

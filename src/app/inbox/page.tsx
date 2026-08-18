@@ -2,10 +2,17 @@ import Link from 'next/link';
 import { Suspense } from 'react';
 import { ActionButton } from '@/components/action-button';
 import { CommentCard } from '@/components/comment-card';
+import { CommentFilterManager } from '@/components/comment-filter-manager';
 import { InboxFilters } from '@/components/inbox-filters';
 import { Badge, EmptyState } from '@/components/ui';
 import { formatNumber } from '@/lib/format';
-import { countsByStatus, hasAnyAccount, listAccountOptions, listInbox } from '@/lib/queries';
+import {
+  countsByStatus,
+  hasAnyAccount,
+  listAccountOptions,
+  listCommentFilters,
+  listInbox,
+} from '@/lib/queries';
 import { requireSession } from '@/lib/session';
 import { runSync } from '../actions';
 
@@ -51,10 +58,13 @@ export default async function InboxPage({ searchParams }: { searchParams: Search
     topLevelOnly: true,
   };
 
-  const [{ items, total, hasMore }, accounts, counts] = await Promise.all([
-    listInbox(filters, page),
+  const [accounts, commentFilters] = await Promise.all([
     listAccountOptions(),
-    countsByStatus(),
+    listCommentFilters(),
+  ]);
+  const [{ items, total, hasMore }, counts] = await Promise.all([
+    listInbox(filters, page, commentFilters),
+    countsByStatus(commentFilters),
   ]);
 
   const queryFor = (nextPage: number) => {
@@ -82,6 +92,8 @@ export default async function InboxPage({ searchParams }: { searchParams: Search
           Sincronizar
         </ActionButton>
       </div>
+
+      {currentUser.role === 'admin' && <CommentFilterManager filters={commentFilters} />}
 
       <Suspense fallback={null}>
         <InboxFilters accounts={accounts} />

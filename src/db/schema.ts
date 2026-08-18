@@ -195,6 +195,26 @@ export const comments = sqliteTable(
   ],
 );
 
+/**
+ * Termos que não devem entrar na fila de Comentários. As regras são globais:
+ * valem para todas as contas, plataformas e pessoas que usam o app.
+ *
+ * O comentário continua salvo localmente e publicado no Meta. A regra só o
+ * retira da fila de trabalho, então removê-la reexibe o histórico imediatamente.
+ */
+export const commentFilters = sqliteTable(
+  'comment_filters',
+  {
+    id: id(),
+    /** Texto original, preservado para exibição na interface. */
+    pattern: text('pattern').notNull(),
+    /** Versão normalizada usada para impedir regras duplicadas. */
+    normalizedPattern: text('normalized_pattern').notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [uniqueIndex('comment_filters_normalized').on(t.normalizedPattern)],
+);
+
 /** Auditoria do que enviamos ao Meta. Erro da API fica registrado, não só logado. */
 export const actionLog = sqliteTable(
   'action_log',
@@ -229,4 +249,5 @@ export type Account = typeof accounts.$inferSelect;
 export type User = typeof users.$inferSelect;
 export type Post = typeof posts.$inferSelect;
 export type Comment = typeof comments.$inferSelect;
+export type CommentFilter = typeof commentFilters.$inferSelect;
 export type SyncRun = typeof syncRuns.$inferSelect;
