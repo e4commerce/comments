@@ -16,6 +16,8 @@ export interface RequestCodeResult {
   ok: boolean;
   message: string;
   email?: string;
+  /** Exposto somente em `next dev` quando o Resend não está configurado. */
+  developmentCode?: string;
 }
 
 export interface VerifyCodeResult {
@@ -60,7 +62,10 @@ export async function requestLoginCode(
     return { ok: false, message: 'Este e-mail não está cadastrado ou está desativado.' };
   }
 
-  if (!hasResendConfig()) {
+  const hasEmailDelivery = hasResendConfig();
+  const useDevelopmentCode = process.env.NODE_ENV !== 'production' && !hasEmailDelivery;
+
+  if (!hasEmailDelivery && !useDevelopmentCode) {
     return {
       ok: false,
       message: 'O envio de e-mail ainda não está configurado. Informe o administrador.',
@@ -93,12 +98,14 @@ export async function requestLoginCode(
     expiresAt: new Date(now.getTime() + CODE_TTL_MS),
   });
 
-  try {
-    await sendLoginCode(user.email, code);
-  } catch (error) {
-    await db.delete(loginCodes).where(eq(loginCodes.id, codeId));
-    console.error('Falha ao enviar código de login pelo Resend:', error);
-    return { ok: false, message: 'Não foi possível enviar o código. Tente novamente.' };
+  if (hasEmailDelivery) {
+    try {
+      await sendLoginCode(user.email, code);
+    } catch (error) {
+      await db.delete(loginCodes).where(eq(loginCodes.id, codeId));
+      console.error('Falha ao enviar código de login pelo Resend:', error);
+      return { ok: false, message: 'Não foi possível enviar o código. Tente novamente.' };
+    }
   }
 
   // Um novo envio invalida qualquer código anterior ainda não consumido.
@@ -116,7 +123,10 @@ export async function requestLoginCode(
   return {
     ok: true,
     email: user.email,
-    message: 'Código enviado. Confira sua caixa de entrada e o spam.',
+    message: useDevelopmentCode
+      ? 'Código gerado localmente. Use o código exibido abaixo.'
+      : 'Código enviado. Confira sua caixa de entrada e o spam.',
+    developmentCode: useDevelopmentCode ? code : undefined,
   };
 }
 

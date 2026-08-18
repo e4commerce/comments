@@ -1,75 +1,205 @@
 @import 'tailwindcss';
+@custom-variant dark (&:where(.dark, .dark *));
 
 /*
- * Tokens semânticos em vez de cores soltas nas classes. A interface tem dois
- * temas e um punhado de estados (positivo, neutro, negativo, urgente) que
- * aparecem no inbox e nos gráficos — precisam ser a mesma cor nos dois lugares,
- * ou o dashboard e a lista contam histórias visualmente diferentes.
+ * Linguagem visual baseada no design system do e4desk/Fin: neutros quentes,
+ * superfícies delimitadas por bordas, ação principal em preto e laranja usado
+ * com parcimônia como assinatura. Os aliases antigos continuam disponíveis
+ * para manter gráficos e fluxos funcionais consistentes durante a evolução.
  */
-@theme {
-  --color-canvas: oklch(99% 0.002 264);
-  --color-surface: oklch(100% 0 0);
-  --color-surface-muted: oklch(97% 0.003 264);
-  --color-line: oklch(91% 0.005 264);
-  --color-ink: oklch(22% 0.015 264);
-  --color-ink-muted: oklch(52% 0.012 264);
-  --color-accent: oklch(56% 0.16 258);
-  --color-accent-ink: oklch(99% 0 0);
+:root {
+  --text-primary: #0a0a0a;
+  --text-secondary: #4a4a4a;
+  --text-muted: #77756f;
+  --text-disabled: #b8b8b8;
+  --text-on-dark: #ffffff;
 
-  /*
-   * Sentimento é uma escala ordenada (positivo ↔ negativo), logo par divergente:
-   * duas matizes opostas com cinza neutro no meio.
-   *
-   * Azul↔vermelho, e não verde↔vermelho, por medição: verde e vermelho ficam a
-   * ΔE 5.7 em deuteranopia — indistinguíveis — contra ΔE 21.6 do par azul e
-   * vermelho. Estes hex são literais de propósito: foram validados contra as
-   * duas superfícies reais desta interface, e reescrevê-los em OKLCH
-   * "equivalente" invalidaria a medição.
-   */
-  --color-positive: #2a78d6;
-  --color-neutral: #898781;
-  --color-negative: #e34948;
-  --color-warning: oklch(72% 0.15 70);
-  /* Matiz única para magnitude (barras de motivo). Mesmo hex do polo positivo:
-     é a matiz sequencial padrão, e ali não carrega identidade nenhuma — só
-     comprimento. Token separado para o código dizer qual dos dois papéis é. */
-  --color-series: #2a78d6;
+  --surface-page: #fafaf7;
+  --surface-card: #ffffff;
+  --surface-sidebar: #f3f2ed;
+  --surface-elevated: #ffffff;
+  --surface-subtle: #f0efea;
+  --surface-inverse: #0a0a0a;
+
+  --action-primary: #0a0a0a;
+  --action-primary-hover: #292929;
+  --action-secondary: #ffffff;
+  --action-secondary-hover: #f5f4ef;
+  --action-ghost-hover: #ebeae5;
+
+  --border-default: #e2e0d9;
+  --border-subtle: #eeece6;
+  --border-strong: #cac7be;
+  --border-focus: #0a0a0a;
+
+  --brand-accent: #e8551e;
+  --brand-accent-soft: #fdeee5;
+
+  --status-success: #2f8d60;
+  --status-success-soft: #e5f2eb;
+  --status-warning: #b7791f;
+  --status-warning-soft: #fbf1d9;
+  --status-error: #d4493a;
+  --status-error-soft: #fbe6e2;
+  --status-info: #4f73cc;
+  --status-info-soft: #e5edfa;
+
+  --data-purple-900: #5b3d8a;
+  --data-purple-700: #7b5baa;
+  --data-purple-500: #a28cc4;
+  --data-purple-300: #c9bbdc;
+  --data-purple-100: #e8e0f0;
+
+  --shadow-xs: 0 1px 2px rgb(10 10 10 / 4%);
+  --shadow-sm: 0 1px 3px rgb(10 10 10 / 6%), 0 1px 2px rgb(10 10 10 / 4%);
+  --shadow-md: 0 8px 28px rgb(10 10 10 / 9%);
+  --shadow-focus: 0 0 0 3px rgb(10 10 10 / 12%);
+
+  /* Sentimento mantém o par divergente validado para daltonismo. */
+  --sentiment-positive: #2a78d6;
+  --sentiment-neutral: #898781;
+  --sentiment-negative: #e34948;
 }
 
-@media (prefers-color-scheme: dark) {
-  @theme {
-    --color-canvas: oklch(17% 0.012 264);
-    --color-surface: oklch(21% 0.014 264);
-    --color-surface-muted: oklch(25% 0.014 264);
-    --color-line: oklch(31% 0.016 264);
-    --color-ink: oklch(95% 0.005 264);
-    --color-ink-muted: oklch(70% 0.015 264);
-    --color-accent: oklch(70% 0.14 258);
-    --color-accent-ink: oklch(18% 0.02 264);
+@theme {
+  --color-canvas: var(--surface-page);
+  --color-surface: var(--surface-card);
+  --color-surface-muted: var(--surface-subtle);
+  --color-surface-sidebar: var(--surface-sidebar);
+  --color-line: var(--border-default);
+  --color-line-subtle: var(--border-subtle);
+  --color-line-strong: var(--border-strong);
+  --color-ink: var(--text-primary);
+  --color-ink-secondary: var(--text-secondary);
+  --color-ink-muted: var(--text-muted);
+  --color-accent: var(--brand-accent);
+  --color-accent-soft: var(--brand-accent-soft);
+  --color-accent-ink: #ffffff;
+  --color-inverse: var(--surface-inverse);
+  --color-positive: var(--sentiment-positive);
+  --color-neutral: var(--sentiment-neutral);
+  --color-negative: var(--sentiment-negative);
+  --color-success: var(--status-success);
+  --color-success-soft: var(--status-success-soft);
+  --color-warning: var(--status-warning);
+  --color-warning-soft: var(--status-warning-soft);
+  --color-error-soft: var(--status-error-soft);
+  --color-info: var(--status-info);
+  --color-info-soft: var(--status-info-soft);
+  --color-series: var(--data-purple-700);
+  --color-series-soft: var(--data-purple-100);
+  --font-sans: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-display: "Instrument Serif", "Tiempos Headline", Charter, Georgia, serif;
+  --shadow-card: var(--shadow-xs);
+  --shadow-popover: var(--shadow-md);
+}
 
-    /* Não é o flip automático das cores claras: são passos escolhidos para a
-       superfície escura e validados como conjunto contra ela. */
-    --color-positive: #3987e5;
-    --color-neutral: #615f5b;
-    --color-negative: #e66767;
-    --color-warning: oklch(78% 0.14 70);
-    --color-series: #3987e5;
-  }
+.dark {
+    --text-primary: #fafaf7;
+    --text-secondary: #c8c6bf;
+    --text-muted: #98968f;
+    --text-disabled: #64625d;
+    --text-on-dark: #151412;
+
+    --surface-page: #1c1b1a;
+    --surface-card: #252422;
+    --surface-sidebar: #171614;
+    --surface-elevated: #2e2d2a;
+    --surface-subtle: #302f2c;
+    --surface-inverse: #fafaf7;
+
+    --action-primary: #fafaf7;
+    --action-primary-hover: #e7e5df;
+    --action-secondary: #302f2c;
+    --action-secondary-hover: #3a3935;
+    --action-ghost-hover: #302f2c;
+
+    --border-default: #45433e;
+    --border-subtle: #34332f;
+    --border-strong: #5b5851;
+    --border-focus: #fafaf7;
+
+    --brand-accent: #ed6b3b;
+    --brand-accent-soft: #442216;
+
+    --status-success: #52c48a;
+    --status-success-soft: #233b2e;
+    --status-warning: #e8b955;
+    --status-warning-soft: #42361a;
+    --status-error: #ed6a5e;
+    --status-error-soft: #3b2323;
+    --status-info: #7a9df0;
+    --status-info-soft: #232b3b;
+
+    --sentiment-positive: #3987e5;
+    --sentiment-neutral: #6f6d67;
+    --sentiment-negative: #e66767;
+    --shadow-focus: 0 0 0 3px rgb(250 250 247 / 14%);
+}
+
+* {
+  border-color: var(--border-default);
 }
 
 html {
-  color-scheme: light dark;
+  color-scheme: light;
+  background: var(--surface-page);
+}
+
+html.dark {
+  color-scheme: dark;
 }
 
 body {
-  background: var(--color-canvas);
-  color: var(--color-ink);
+  margin: 0;
+  background: var(--surface-page);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.5;
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
-/* Foco visível em tudo que é operável: o inbox é usado no teclado, em sequência. */
+::selection {
+  background: var(--brand-accent-soft);
+  color: var(--text-primary);
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button,
+a,
+summary,
+select {
+  -webkit-tap-highlight-color: transparent;
+}
+
 :focus-visible {
-  outline: 2px solid var(--color-accent);
+  outline: 2px solid var(--border-focus);
   outline-offset: 2px;
-  border-radius: 4px;
+}
+
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: none;
+  border-color: var(--border-focus);
+  box-shadow: var(--shadow-focus);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
 }

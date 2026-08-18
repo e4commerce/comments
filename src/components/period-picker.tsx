@@ -23,7 +23,7 @@ export function PeriodPicker({ current }: { current: number }) {
 
   return (
     <div
-      className={`inline-flex rounded-md border border-line bg-surface p-0.5 ${pending ? 'opacity-60' : ''}`}
+      className={`inline-flex rounded-full border border-line bg-surface p-1 shadow-card ${pending ? 'opacity-60' : ''}`}
       role="group"
       aria-label="Período"
     >
@@ -33,9 +33,9 @@ export function PeriodPicker({ current }: { current: number }) {
           type="button"
           onClick={() => select(option.days)}
           aria-pressed={current === option.days}
-          className={`rounded px-2.5 py-1 text-xs font-medium transition-colors ${
+          className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
             current === option.days
-              ? 'bg-accent text-accent-ink'
+              ? 'bg-inverse text-[var(--text-on-dark)]'
               : 'text-ink-muted hover:bg-surface-muted hover:text-ink'
           }`}
         >

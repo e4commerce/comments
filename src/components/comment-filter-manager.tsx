@@ -1,17 +1,21 @@
 'use client';
 
 import { useActionState } from 'react';
+import { ListFilter, Plus } from 'lucide-react';
 import { addCommentFilter, removeCommentFilter } from '@/app/actions';
 import type { CommentFilter } from '@/db';
 import { ActionButton } from './action-button';
-import { Badge, Button, Card } from './ui';
+import { Badge, Button, Card, inputClass } from './ui';
 
 export function CommentFilterManager({ filters }: { filters: CommentFilter[] }) {
   const [state, formAction, pending] = useActionState(addCommentFilter, null);
 
   return (
-    <details className="group rounded-xl border border-line bg-surface">
-      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 [&::-webkit-details-marker]:hidden">
+    <details className="group rounded-xl border border-line-subtle bg-surface shadow-card">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-4 transition-colors hover:bg-surface-muted [&::-webkit-details-marker]:hidden">
+        <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-accent-soft text-accent">
+          <ListFilter size={16} strokeWidth={1.8} />
+        </span>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <span className="text-sm font-medium">Filtros de comentários</span>
@@ -29,7 +33,7 @@ export function CommentFilterManager({ filters }: { filters: CommentFilter[] }) 
         </span>
       </summary>
 
-      <div className="space-y-4 border-t border-line p-4">
+      <div className="space-y-4 border-t border-line-subtle p-5">
         <p className="text-sm text-ink-muted">
           O filtro vale para Facebook, Instagram, todas as contas e todos os usuários. Ele não
           exclui nem arquiva comentários: oculta desta aba e desconsidera dos indicadores e das
@@ -50,7 +54,7 @@ export function CommentFilterManager({ filters }: { filters: CommentFilter[] }) 
               maxLength={100}
               autoComplete="off"
               placeholder="Palavra, número ou frase"
-              className="w-full rounded-md border border-line bg-canvas px-3 py-2 text-sm"
+              className={inputClass}
             />
           </div>
           <Button
@@ -59,6 +63,7 @@ export function CommentFilterManager({ filters }: { filters: CommentFilter[] }) 
             disabled={pending}
             className="w-full justify-center py-2 sm:w-auto"
           >
+            <Plus size={14} strokeWidth={1.8} />
             {pending ? 'Adicionando…' : 'Adicionar filtro'}
           </Button>
         </form>

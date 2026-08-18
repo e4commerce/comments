@@ -49,6 +49,10 @@ O login é por usuário, sem senha: o app envia um código de 6 dígitos que exp
 `thiago@muranojoias.com.br`. Depois de entrar, o ADM adiciona e desativa outros usuários em
 **Configurações → Usuários**.
 
+Em desenvolvimento (`pnpm dev`), se o Resend não estiver configurado, o código é exibido na
+própria tela de login para facilitar o uso local. Em produção, `RESEND_API_KEY` e
+`RESEND_FROM_EMAIL` continuam obrigatórios e nenhum código é mostrado na interface.
+
 No Resend, verifique o domínio usado em `RESEND_FROM_EMAIL`. O remetente de teste
 `onboarding@resend.dev` só consegue enviar para o próprio e-mail da conta Resend.
 

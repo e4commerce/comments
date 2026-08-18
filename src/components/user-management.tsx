@@ -1,9 +1,10 @@
 'use client';
 
 import { useActionState } from 'react';
+import { UserPlus, Users } from 'lucide-react';
 import { addUser, toggleUserActive } from '@/app/actions';
 import { ActionButton } from './action-button';
-import { Badge, Button, Card } from './ui';
+import { Badge, Button, Card, SectionHeading, inputClass, selectClass } from './ui';
 
 export interface ManagedUser {
   id: string;
@@ -23,15 +24,18 @@ export function UserManagement({
   const [state, formAction, pending] = useActionState(addUser, null);
 
   return (
-    <section className="space-y-3">
-      <div>
-        <h2 className="font-medium">Usuários</h2>
-        <p className="text-sm text-ink-muted">
-          Somente e-mails ativos conseguem solicitar um código de acesso.
-        </p>
-      </div>
+    <section className="space-y-4">
+      <SectionHeading
+        title="Usuários"
+        description="Somente e-mails ativos conseguem solicitar um código de acesso."
+        action={
+          <span className="flex size-9 items-center justify-center rounded-lg bg-surface-muted text-ink-secondary">
+            <Users size={16} strokeWidth={1.8} />
+          </span>
+        }
+      />
 
-      <Card>
+      <Card className="p-4 sm:p-5">
         <form action={formAction} className="flex flex-col gap-2 sm:flex-row sm:items-start">
           <div className="min-w-0 flex-1">
             <label className="sr-only" htmlFor="new-user-email">
@@ -44,7 +48,7 @@ export function UserManagement({
               required
               placeholder="pessoa@muranojoias.com.br"
               autoComplete="off"
-              className="w-full rounded-md border border-line bg-canvas px-3 py-2 text-sm"
+              className={inputClass}
             />
           </div>
           <label className="sr-only" htmlFor="new-user-role">
@@ -54,12 +58,13 @@ export function UserManagement({
             id="new-user-role"
             name="role"
             defaultValue="user"
-            className="rounded-md border border-line bg-canvas px-3 py-2 text-sm"
+            className={`${selectClass} sm:w-auto`}
           >
             <option value="user">Usuário</option>
             <option value="admin">ADM</option>
           </select>
           <Button type="submit" variant="primary" disabled={pending} className="justify-center py-2">
+            <UserPlus size={14} strokeWidth={1.8} />
             {pending ? 'Adicionando…' : 'Adicionar'}
           </Button>
         </form>
@@ -72,7 +77,10 @@ export function UserManagement({
 
       <div className="space-y-2">
         {users.map((user) => (
-          <Card key={user.id} className="flex flex-wrap items-center gap-3">
+          <Card key={user.id} className="flex flex-wrap items-center gap-4 p-4">
+            <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-surface-muted text-xs font-semibold">
+              {user.email.slice(0, 2).toUpperCase()}
+            </span>
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="truncate text-sm font-medium">{user.email}</span>

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useTransition } from 'react';
+import { Sparkles } from 'lucide-react';
 import { summarizePeriod } from '@/app/actions';
 import { Button } from './ui';
 
@@ -36,6 +37,7 @@ export function AiSummary({ days, disabled }: { days: number; disabled?: boolean
         </p>
       )}
       <Button size="sm" onClick={run} disabled={pending || disabled}>
+        <Sparkles size={13} strokeWidth={1.8} />
         {pending ? 'Analisando…' : text ? 'Gerar de novo' : 'Interpretar com IA'}
       </Button>
     </div>

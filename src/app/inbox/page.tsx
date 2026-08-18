@@ -1,10 +1,11 @@
 import Link from 'next/link';
 import { Suspense } from 'react';
+import { RefreshCw } from 'lucide-react';
 import { ActionButton } from '@/components/action-button';
 import { CommentCard } from '@/components/comment-card';
 import { CommentFilterManager } from '@/components/comment-filter-manager';
 import { InboxFilters } from '@/components/inbox-filters';
-import { Badge, EmptyState } from '@/components/ui';
+import { Badge, EmptyState, PageHeader } from '@/components/ui';
 import { formatNumber } from '@/lib/format';
 import {
   countsByStatus,
@@ -76,22 +77,26 @@ export default async function InboxPage({ searchParams }: { searchParams: Search
   };
 
   return (
-    <div className="space-y-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-semibold tracking-tight">Comentários</h1>
-          <p className="text-sm text-ink-muted">
+    <div className="space-y-7">
+      <PageHeader
+        eyebrow="Caixa de entrada"
+        title="Comentários"
+        description={
+          <>
             <Badge tone="accent">{formatNumber(counts.new ?? 0)} a responder</Badge>{' '}
             <span className="ml-1">
               {formatNumber(counts.answered ?? 0)} respondidos · {formatNumber(counts.ignored ?? 0)}{' '}
               arquivados
             </span>
-          </p>
-        </div>
-        <ActionButton action={runSync} pendingLabel="Sincronizando…">
-          Sincronizar
-        </ActionButton>
-      </div>
+          </>
+        }
+        actions={
+          <ActionButton action={runSync} pendingLabel="Sincronizando…">
+            <RefreshCw size={14} strokeWidth={1.8} />
+            Sincronizar
+          </ActionButton>
+        }
+      />
 
       {currentUser.role === 'admin' && <CommentFilterManager filters={commentFilters} />}
 
@@ -105,10 +110,14 @@ export default async function InboxPage({ searchParams }: { searchParams: Search
         </EmptyState>
       ) : (
         <>
-          <p className="text-xs text-ink-muted">
-            {formatNumber(total)} comentário(s) · ordenados por urgência e depois por mais recente
-          </p>
-          <div className="space-y-3">
+          <div className="flex items-center gap-3">
+            <span className="h-px flex-1 bg-line-subtle" />
+            <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-ink-muted">
+              {formatNumber(total)} comentário(s) · urgência e recência
+            </p>
+            <span className="h-px flex-1 bg-line-subtle" />
+          </div>
+          <div className="space-y-4">
             {items.map((item) => (
               <CommentCard key={item.comment.id} item={item} />
             ))}
@@ -117,9 +126,9 @@ export default async function InboxPage({ searchParams }: { searchParams: Search
       )}
 
       {(page > 0 || hasMore) && (
-        <div className="flex items-center justify-between border-t border-line pt-4">
+        <div className="flex items-center justify-between border-t border-line-subtle pt-5">
           {page > 0 ? (
-            <Link href={queryFor(page - 1)} className="text-sm text-accent hover:underline">
+            <Link href={queryFor(page - 1)} className="text-sm font-medium text-ink hover:underline">
               ← Anteriores
             </Link>
           ) : (
@@ -127,7 +136,7 @@ export default async function InboxPage({ searchParams }: { searchParams: Search
           )}
           <span className="text-xs text-ink-muted">Página {page + 1}</span>
           {hasMore ? (
-            <Link href={queryFor(page + 1)} className="text-sm text-accent hover:underline">
+            <Link href={queryFor(page + 1)} className="text-sm font-medium text-ink hover:underline">
               Próximos →
             </Link>
           ) : (

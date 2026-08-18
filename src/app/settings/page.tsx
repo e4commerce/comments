@@ -1,8 +1,9 @@
 import Link from 'next/link';
 import { desc } from 'drizzle-orm';
+import { BrainCircuit, Plug, RefreshCw } from 'lucide-react';
 import { accounts, db, syncRuns, users } from '@/db';
 import { ActionButton } from '@/components/action-button';
-import { Badge, Button, Card, EmptyState, Notice } from '@/components/ui';
+import { Badge, Button, Card, EmptyState, Notice, PageHeader, SectionHeading } from '@/components/ui';
 import { UserManagement } from '@/components/user-management';
 import { countPendingAnalysis } from '@/lib/ai';
 import { hasMetaConfig, hasOpenRouterKey } from '@/lib/env';
@@ -37,11 +38,12 @@ export default async function SettingsPage({
     }));
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-semibold tracking-tight">Configurações</h1>
-        <p className="text-sm text-ink-muted">Contas conectadas, usuários, sincronização e análise.</p>
-      </div>
+    <div className="space-y-8">
+      <PageHeader
+        eyebrow="Administração"
+        title="Configurações"
+        description="Contas conectadas, usuários, sincronização e análise."
+      />
 
       {params.error && <Notice tone="negative">Falha ao conectar: {params.error}</Notice>}
       {params.conectadas && (
@@ -61,34 +63,40 @@ export default async function SettingsPage({
 
       <UserManagement users={managedUsers} currentUserId={currentUser.id} />
 
-      <Card>
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h2 className="font-medium">Conexão com o Meta</h2>
-            <p className="text-sm text-ink-muted">
+      <Card className="p-5 sm:p-6">
+        <SectionHeading
+          title="Conexão com o Meta"
+          description={
+            <>
               Autoriza o app nas páginas que você administra. Contas de Instagram vinculadas a uma
               página são detectadas automaticamente.
-            </p>
-          </div>
-          {/* Link, e não botão com onClick: o OAuth é uma navegação de verdade,
-              e assim funciona com Ctrl+clique e sem JavaScript. */}
-          {hasMetaConfig() ? (
-            <Link
-              href="/api/meta/connect"
-              className="inline-flex items-center rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-accent-ink transition-opacity hover:opacity-90"
-            >
-              {connected.length > 0 ? 'Reconectar / adicionar' : 'Conectar meu Meta'}
-            </Link>
-          ) : (
-            <Button variant="primary" disabled>
-              Conectar meu Meta
-            </Button>
-          )}
-        </div>
+            </>
+          }
+          action={
+            hasMetaConfig() ? (
+              <Link
+                href="/api/meta/connect"
+                prefetch={false}
+                className="inline-flex min-h-9 items-center gap-2 rounded-full bg-inverse px-4 py-2 text-sm font-medium text-[var(--text-on-dark)] transition-colors hover:bg-[var(--action-primary-hover)]"
+              >
+                <Plug size={14} strokeWidth={1.8} />
+                {connected.length > 0 ? 'Reconectar / adicionar' : 'Conectar meu Meta'}
+              </Link>
+            ) : (
+              <Button variant="primary" disabled>
+                <Plug size={14} strokeWidth={1.8} />
+                Conectar meu Meta
+              </Button>
+            )
+          }
+        />
       </Card>
 
-      <section className="space-y-3">
-        <h2 className="font-medium">Contas conectadas</h2>
+      <section className="space-y-4">
+        <SectionHeading
+          title="Contas conectadas"
+          description={`${connected.length} conta(s) disponível(is) para monitoramento.`}
+        />
 
         {connected.length === 0 ? (
           <EmptyState title="Nenhuma conta conectada">
@@ -103,7 +111,10 @@ export default async function SettingsPage({
               const canModerate = account.tasks?.includes('MODERATE') ?? false;
 
               return (
-                <Card key={account.id} className="flex flex-wrap items-center gap-3">
+                <Card key={account.id} className="flex flex-wrap items-center gap-4 p-4">
+                  <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-surface-muted font-display text-lg">
+                    {account.name.slice(0, 1).toUpperCase()}
+                  </span>
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="truncate font-medium">{account.name}</span>
@@ -146,10 +157,13 @@ export default async function SettingsPage({
         )}
       </section>
 
-      <section className="space-y-3">
-        <h2 className="font-medium">Sincronização e análise</h2>
+      <section className="space-y-4">
+        <SectionHeading
+          title="Sincronização e análise"
+          description="Controles operacionais e histórico recente do processamento."
+        />
 
-        <Card className="space-y-4">
+        <Card className="space-y-5 p-5 sm:p-6">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <p className="text-sm font-medium">Buscar comentários</p>
@@ -163,11 +177,12 @@ export default async function SettingsPage({
               pendingLabel="Sincronizando…"
               disabled={connected.length === 0}
             >
+              <RefreshCw size={14} strokeWidth={1.8} />
               Sincronizar agora
             </ActionButton>
           </div>
 
-          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line pt-4">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line-subtle pt-5">
             <div>
               <p className="text-sm font-medium">Analisar com IA</p>
               <p className="text-xs text-ink-muted">
@@ -182,6 +197,7 @@ export default async function SettingsPage({
               disabled={!hasOpenRouterKey() || pendingAnalysis === 0}
               title={!hasOpenRouterKey() ? 'Configure OPENROUTER_API_KEY' : undefined}
             >
+              <BrainCircuit size={14} strokeWidth={1.8} />
               Analisar pendentes
             </ActionButton>
           </div>
@@ -196,11 +212,11 @@ export default async function SettingsPage({
         )}
 
         {runs.length > 0 && (
-          <Card>
-            <p className="mb-2 text-sm font-medium">Últimas sincronizações</p>
-            <ul className="space-y-1.5 text-xs">
+          <Card className="p-5 sm:p-6">
+            <SectionHeading title="Últimas sincronizações" />
+            <ul className="mt-4 divide-y divide-line-subtle text-xs">
               {runs.map((run) => (
-                <li key={run.id} className="flex flex-wrap items-center gap-2">
+                <li key={run.id} className="flex flex-wrap items-center gap-2 py-2.5 first:pt-0 last:pb-0">
                   <Badge tone={run.status === 'ok' ? 'positive' : run.status === 'error' ? 'negative' : 'neutral'}>
                     {run.status === 'ok' ? 'ok' : run.status === 'error' ? 'erro' : 'em andamento'}
                   </Badge>

@@ -214,7 +214,7 @@ export function DailyVolumeChart({ data }: { data: DailyPoint[] }) {
 
         {hover !== null && data[hover] && (
           <div
-            className="pointer-events-none absolute top-0 rounded-md border border-line bg-surface px-2.5 py-1.5 text-xs shadow-sm"
+            className="pointer-events-none absolute top-0 rounded-lg border border-line bg-surface px-3 py-2 text-xs shadow-popover"
             style={{
               left: `${((hover + 0.5) / Math.max(1, data.length)) * 100}%`,
               transform: 'translateX(-50%)',
@@ -290,7 +290,7 @@ export function SentimentShareBar({
 
   return (
     <div className="space-y-2">
-      <div className="flex h-7 w-full items-stretch gap-[2px] overflow-hidden">
+      <div className="flex h-8 w-full items-stretch gap-[2px] overflow-hidden rounded-md bg-surface-muted p-0.5">
         {SENTIMENT_SERIES.map((series) => {
           const value = sentiment[series.key];
           if (value === 0) return null;
@@ -378,18 +378,18 @@ export function MotiveBars({
             {hrefBase ? (
               <a
                 href={`${hrefBase}${encodeURIComponent(row.motive)}`}
-                className="block h-2.5 w-full rounded-sm bg-surface-muted"
+                className="block h-2.5 w-full rounded-full bg-series-soft"
                 title={`Ver comentários de "${motiveLabel(row.motive)}"`}
               >
                 <span
-                  className="block h-full rounded-sm"
+                  className="block h-full rounded-full"
                   style={{ width: `${percent}%`, background: 'var(--color-series)' }}
                 />
               </a>
             ) : (
-              <div className="h-2.5 w-full rounded-sm bg-surface-muted">
+              <div className="h-2.5 w-full rounded-full bg-series-soft">
                 <div
-                  className="h-full rounded-sm"
+                  className="h-full rounded-full"
                   style={{ width: `${percent}%`, background: 'var(--color-series)' }}
                 />
               </div>

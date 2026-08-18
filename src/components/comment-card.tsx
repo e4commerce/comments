@@ -2,6 +2,17 @@
 
 import { useState, useTransition } from 'react';
 import {
+  Archive,
+  ExternalLink,
+  Eye,
+  EyeOff,
+  Heart,
+  Reply,
+  RotateCcw,
+  Send,
+  Trash2,
+} from 'lucide-react';
+import {
   removeComment,
   replyToComment,
   setStatus,
@@ -59,12 +70,16 @@ export function CommentCard({ item }: { item: InboxItem }) {
   }
 
   return (
-    <Card className="space-y-3">
-      {/* Cabeçalho: quem, quando, onde */}
-      <div className="flex flex-wrap items-start gap-2">
-        <div className="min-w-0 flex-1">
+    <Card className="overflow-hidden p-0 transition-colors hover:border-line">
+      <div className="space-y-4 p-5">
+        {/* Cabeçalho: quem, quando, onde */}
+        <div className="flex flex-wrap items-start gap-3">
+          <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-accent-soft text-sm font-semibold text-accent">
+            {(comment.authorName ?? '?').slice(0, 1).toUpperCase()}
+          </div>
+          <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-            <span className="font-medium">{comment.authorName ?? 'Autor desconhecido'}</span>
+              <span className="font-semibold">{comment.authorName ?? 'Autor desconhecido'}</span>
             <Badge tone={comment.platform === 'instagram' ? 'accent' : 'plain'}>
               {comment.platform === 'instagram' ? 'Instagram' : 'Facebook'}
             </Badge>
@@ -73,7 +88,7 @@ export function CommentCard({ item }: { item: InboxItem }) {
             {comment.status === 'answered' && <Badge tone="positive">Respondido</Badge>}
             {comment.status === 'ignored' && <Badge tone="neutral">Arquivado</Badge>}
           </div>
-          <p className="mt-0.5 truncate text-xs text-ink-muted">
+            <p className="mt-1 truncate text-xs text-ink-muted">
             {accountName}
             {postMessage ? ` · ${postMessage.slice(0, 70)}` : ''}
           </p>
@@ -84,19 +99,22 @@ export function CommentCard({ item }: { item: InboxItem }) {
             href={postPermalink}
             target="_blank"
             rel="noreferrer"
-            className="text-xs text-accent hover:underline"
+              className="inline-flex items-center gap-1 text-xs font-medium text-ink-muted hover:text-ink"
           >
-            Ver no {comment.platform === 'instagram' ? 'Instagram' : 'Facebook'} ↗
+              Ver no {comment.platform === 'instagram' ? 'Instagram' : 'Facebook'}
+              <ExternalLink size={12} strokeWidth={1.8} />
           </a>
         )}
       </div>
 
       {/* Texto */}
-      <p className="whitespace-pre-wrap text-sm">{comment.message || <em className="text-ink-muted">sem texto</em>}</p>
+        <p className="whitespace-pre-wrap text-[15px] leading-relaxed">
+          {comment.message || <em className="text-ink-muted">sem texto</em>}
+        </p>
 
       {/* Classificação da IA */}
       {comment.analyzedAt ? (
-        <div className="flex flex-wrap items-center gap-1.5">
+          <div className="flex flex-wrap items-center gap-1.5 border-t border-line-subtle pt-3">
           {comment.sentiment && (
             <Badge
               tone={
@@ -122,14 +140,19 @@ export function CommentCard({ item }: { item: InboxItem }) {
           {comment.isSpam && <Badge tone="warning">Spam</Badge>}
         </div>
       ) : (
-        <p className="text-xs text-ink-muted">Sem análise de IA ainda.</p>
+          <p className="border-t border-line-subtle pt-3 text-xs text-ink-muted">
+            Sem análise de IA ainda.
+          </p>
       )}
 
       {/* Thread. É o "olhar outras respostas": nossas e de terceiros, em ordem. */}
       {replies.length > 0 && (
-        <div className="space-y-2 border-l-2 border-line pl-3">
+          <div className="space-y-3 rounded-lg bg-surface-muted p-3.5">
+            <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-ink-muted">
+              Respostas na conversa
+            </p>
           {replies.map((reply) => (
-            <div key={reply.id} className="text-sm">
+              <div key={reply.id} className="border-l-2 border-line-strong pl-3 text-sm">
               <div className="flex flex-wrap items-center gap-2">
                 <span className={`text-xs font-medium ${reply.isOwn ? 'text-accent' : ''}`}>
                   {reply.isOwn ? 'Você' : (reply.authorName ?? 'Autor desconhecido')}
@@ -142,25 +165,29 @@ export function CommentCard({ item }: { item: InboxItem }) {
           ))}
         </div>
       )}
+      </div>
 
       {/* Ações */}
-      <div className="flex flex-wrap items-center gap-2 border-t border-line pt-3">
+      <div className="flex flex-wrap items-center gap-2 border-t border-line-subtle bg-canvas/60 px-5 py-3.5">
         <Button
           size="sm"
           variant="primary"
           onClick={() => setReplyOpen((open) => !open)}
           disabled={pending}
         >
+          <Reply size={13} strokeWidth={1.8} />
           {replyOpen ? 'Cancelar' : 'Responder'}
         </Button>
 
         {canLike && (
           <Button size="sm" onClick={() => run(() => toggleLike(comment.id))} disabled={pending}>
-            {comment.likedByUs ? '♥ Curtido' : '♡ Curtir'}
+            <Heart size={13} strokeWidth={1.8} fill={comment.likedByUs ? 'currentColor' : 'none'} />
+            {comment.likedByUs ? 'Curtido' : 'Curtir'}
           </Button>
         )}
 
         <Button size="sm" onClick={() => run(() => toggleHide(comment.id))} disabled={pending}>
+          {comment.isHidden ? <Eye size={13} strokeWidth={1.8} /> : <EyeOff size={13} strokeWidth={1.8} />}
           {comment.isHidden ? 'Reexibir' : 'Ocultar'}
         </Button>
 
@@ -171,6 +198,7 @@ export function CommentCard({ item }: { item: InboxItem }) {
             onClick={() => run(() => setStatus(comment.id, 'ignored'))}
             disabled={pending}
           >
+            <Archive size={13} strokeWidth={1.8} />
             Arquivar
           </Button>
         ) : (
@@ -180,6 +208,7 @@ export function CommentCard({ item }: { item: InboxItem }) {
             onClick={() => run(() => setStatus(comment.id, 'new'))}
             disabled={pending}
           >
+            <RotateCcw size={13} strokeWidth={1.8} />
             Reabrir
           </Button>
         )}
@@ -196,19 +225,20 @@ export function CommentCard({ item }: { item: InboxItem }) {
             )
           }
         >
+          <Trash2 size={13} strokeWidth={1.8} />
           Excluir
         </Button>
       </div>
 
       {replyOpen && (
-        <div className="space-y-2">
+        <div className="space-y-3 border-t border-line-subtle p-5">
           <textarea
             value={draft}
             onChange={(event) => setDraft(event.target.value)}
             rows={3}
             autoFocus
             placeholder="Escreva a resposta que será publicada no Meta…"
-            className="w-full rounded-md border border-line bg-canvas px-3 py-2 text-sm"
+            className="w-full rounded-xl border border-line bg-surface px-4 py-3 text-sm leading-relaxed placeholder:text-ink-muted"
             onKeyDown={(event) => {
               // Cmd/Ctrl+Enter envia: o inbox é operado em sequência.
               if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') submitReply();
@@ -216,6 +246,7 @@ export function CommentCard({ item }: { item: InboxItem }) {
           />
           <div className="flex items-center gap-2">
             <Button size="sm" variant="primary" onClick={submitReply} disabled={pending || !draft.trim()}>
+              <Send size={13} strokeWidth={1.8} />
               {pending ? 'Publicando…' : 'Publicar resposta'}
             </Button>
             <span className="text-xs text-ink-muted">⌘/Ctrl + Enter</span>
@@ -225,7 +256,9 @@ export function CommentCard({ item }: { item: InboxItem }) {
 
       {feedback && (
         <p
-          className={`text-xs ${feedback.ok ? 'text-ink-muted' : 'text-negative'}`}
+          className={`border-t border-line-subtle px-5 py-3 text-xs ${
+            feedback.ok ? 'text-ink-muted' : 'text-negative'
+          }`}
           role={feedback.ok ? undefined : 'alert'}
         >
           {feedback.message}

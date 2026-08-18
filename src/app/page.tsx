@@ -1,9 +1,10 @@
 import Link from 'next/link';
 import { Suspense } from 'react';
+import { CircleHelp, Inbox, MessageSquareText, Siren } from 'lucide-react';
 import { AiSummary } from '@/components/ai-summary';
 import { DailyVolumeChart, MotiveBars, SentimentShareBar } from '@/components/charts';
 import { PeriodPicker } from '@/components/period-picker';
-import { Card, EmptyState, Notice } from '@/components/ui';
+import { Card, EmptyState, Notice, PageHeader, SectionHeading } from '@/components/ui';
 import { countPendingAnalysis } from '@/lib/ai';
 import { hasOpenRouterKey } from '@/lib/env';
 import { formatNumber, formatPercent } from '@/lib/format';
@@ -50,18 +51,21 @@ export default async function DashboardPage({
   const analyzedShare = formatPercent(overview.analyzed, overview.total);
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-semibold tracking-tight">Análise</h1>
-          <p className="text-sm text-ink-muted">
+    <div className="space-y-8">
+      <PageHeader
+        eyebrow="Visão geral"
+        title="Análise de comentários"
+        description={
+          <>
             {formatNumber(total)} comentários no banco · {analyzedShare} do período analisado por IA
-          </p>
-        </div>
-        <Suspense fallback={null}>
-          <PeriodPicker current={days} />
-        </Suspense>
-      </div>
+          </>
+        }
+        actions={
+          <Suspense fallback={null}>
+            <PeriodPicker current={days} />
+          </Suspense>
+        }
+      />
 
       {total === 0 && (
         <Notice tone="accent">
@@ -105,81 +109,95 @@ export default async function DashboardPage({
       )}
 
       {/* KPIs. Números que respondem "preciso agir agora?" antes dos gráficos. */}
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <StatTile label="Comentários no período" value={formatNumber(overview.total)} />
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <StatTile
+          label="Comentários no período"
+          value={formatNumber(overview.total)}
+          icon={MessageSquareText}
+        />
         <StatTile
           label="A responder"
           value={formatNumber(overview.pendingReply)}
+          icon={Inbox}
           href="/inbox?status=new"
         />
         <StatTile
           label="Urgentes sem resposta"
           value={formatNumber(overview.highUrgency)}
+          icon={Siren}
           tone={overview.highUrgency > 0 ? 'negative' : undefined}
           href="/inbox?status=new&urgency=high"
         />
         <StatTile
           label="Perguntas"
           value={formatNumber(overview.questions)}
+          icon={CircleHelp}
           hint={overview.spam > 0 ? `${formatNumber(overview.spam)} marcados como spam` : undefined}
         />
       </div>
 
-      <Card className="space-y-3">
-        <div>
-          <h2 className="font-medium">Volumetria diária</h2>
-          <p className="text-xs text-ink-muted">
+      <Card className="space-y-5 p-5 sm:p-6">
+        <SectionHeading
+          title="Volumetria diária"
+          description={
+            <>
             Pela data em que o comentário foi publicado, no horário de São Paulo. Dias sem
             comentário aparecem como zero.
-          </p>
-        </div>
+            </>
+          }
+        />
         <DailyVolumeChart data={overview.daily} />
       </Card>
 
       {/* items-start: sem isso o card de sentimento estica até a altura do de
           motivos e sobra um vazio grande embaixo da barra. */}
-      <div className="grid items-start gap-4 lg:grid-cols-2">
-        <Card className="space-y-3">
-          <div>
-            <h2 className="font-medium">Sentimento do período</h2>
-            <p className="text-xs text-ink-muted">
+      <div className="grid items-start gap-4 xl:grid-cols-2">
+        <Card className="space-y-5 p-5 sm:p-6">
+          <SectionHeading
+            title="Sentimento do período"
+            description={
+              <>
               Participação sobre os comentários analisados, do negativo ao positivo.
-            </p>
-          </div>
+              </>
+            }
+          />
           <SentimentShareBar sentiment={overview.sentiment} />
         </Card>
 
-        <Card className="space-y-3">
-          <div>
-            <h2 className="font-medium">Principais motivos</h2>
-            <p className="text-xs text-ink-muted">
+        <Card className="space-y-5 p-5 sm:p-6">
+          <SectionHeading
+            title="Principais motivos"
+            description={
+              <>
               Até 10 motivos, por volume. Clique na barra para ver os comentários.
-            </p>
-          </div>
+              </>
+            }
+          />
           <MotiveBars motives={overview.motives} hrefBase="/inbox?status=all&motive=" />
         </Card>
       </div>
 
-      <Card className="space-y-3">
-        <div>
-          <h2 className="font-medium">Leitura dos motivos</h2>
-          <p className="text-xs text-ink-muted">
-            Interpretação em texto do que os motivos do período indicam.
-          </p>
-        </div>
+      <Card className="space-y-5 p-5 sm:p-6">
+        <SectionHeading
+          title="Leitura dos motivos"
+          description="Interpretação em texto do que os motivos do período indicam."
+        />
         <AiSummary days={days} disabled={!hasOpenRouterKey() || overview.motives.length === 0} />
       </Card>
 
       {overview.byPlatform.length > 1 && (
-        <Card>
-          <h2 className="mb-2 font-medium">Por plataforma</h2>
-          <ul className="flex flex-wrap gap-6 text-sm">
+        <Card className="p-5 sm:p-6">
+          <SectionHeading title="Por plataforma" />
+          <ul className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
             {overview.byPlatform.map((row) => (
-              <li key={row.platform}>
-                <span className="text-ink-muted">
+              <li
+                key={row.platform}
+                className="flex items-center justify-between rounded-lg bg-surface-muted px-4 py-3"
+              >
+                <span className="font-medium">
                   {row.platform === 'instagram' ? 'Instagram' : 'Facebook'}:
-                </span>{' '}
-                <span className="[font-variant-numeric:tabular-nums]">
+                </span>
+                <span className="font-display text-xl [font-variant-numeric:tabular-nums]">
                   {formatNumber(row.count)}
                 </span>
               </li>
@@ -201,17 +219,32 @@ function StatTile({
   hint,
   tone,
   href,
+  icon: Icon,
 }: {
   label: string;
   value: string;
   hint?: string;
   tone?: 'negative';
   href?: string;
+  icon: typeof MessageSquareText;
 }) {
   const body = (
     <>
-      <p className="text-xs text-ink-muted">{label}</p>
-      <p className={`mt-1 text-2xl font-semibold ${tone === 'negative' ? 'text-negative' : ''}`}>
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-xs font-medium text-ink-muted">{label}</p>
+        <span
+          className={`flex size-8 items-center justify-center rounded-lg ${
+            tone === 'negative' ? 'bg-error-soft text-negative' : 'bg-surface-muted text-ink-secondary'
+          }`}
+        >
+          <Icon size={15} strokeWidth={1.8} />
+        </span>
+      </div>
+      <p
+        className={`mt-5 font-display text-[34px] leading-none tracking-[-0.02em] ${
+          tone === 'negative' ? 'text-negative' : ''
+        }`}
+      >
         {value}
       </p>
       {hint && <p className="mt-0.5 text-xs text-ink-muted">{hint}</p>}
@@ -222,11 +255,13 @@ function StatTile({
     return (
       <Link
         href={href}
-        className="rounded-xl border border-line bg-surface p-4 transition-colors hover:bg-surface-muted"
+        className={`group rounded-xl border bg-surface p-5 shadow-card transition-[background-color,border-color,transform] hover:-translate-y-0.5 hover:bg-surface-muted ${
+          tone === 'negative' ? 'border-negative/25' : 'border-line-subtle'
+        }`}
       >
         {body}
       </Link>
     );
   }
-  return <Card>{body}</Card>;
+  return <Card className="p-5">{body}</Card>;
 }
