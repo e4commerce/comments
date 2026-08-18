@@ -1,4 +1,4 @@
-import { and, eq, inArray } from 'drizzle-orm';
+import { and, eq, gte, inArray, isNull, or } from 'drizzle-orm';
 import { type Account, accounts, comments, db, posts, syncRuns } from '@/db';
 import { decrypt } from './crypto';
 import { env } from './env';
@@ -13,8 +13,9 @@ import {
 import { GraphError } from './meta/client';
 
 /**
- * Ingestão por varredura: lista as publicações da janela de backfill e, para
- * cada uma, os comentários.
+ * Ingestão por varredura: descobre todas as publicações e lê os comentários
+ * dentro da janela de backfill. A distinção importa: uma publicação antiga
+ * pode receber um comentário hoje.
  *
  * Não há webhook aqui de propósito. Webhook do Meta exige App Review, endpoint
  * público e assinatura HMAC — e, o que é decisivo, **não existe endpoint para
@@ -31,8 +32,26 @@ export interface SyncResult {
   errors: string[];
 }
 
+const globalForSync = globalThis as unknown as { __metaCommentsSync?: Promise<SyncResult> };
+
 /** Sincroniza todas as contas ativas. */
 export async function syncAll(): Promise<SyncResult> {
+  // Botão manual e agendador podem disparar juntos. Compartilhar a execução
+  // evita duplicar chamadas ao Meta e disputar escrita no mesmo SQLite.
+  if (globalForSync.__metaCommentsSync) return globalForSync.__metaCommentsSync;
+
+  const current = syncAllUnlocked();
+  globalForSync.__metaCommentsSync = current;
+  try {
+    return await current;
+  } finally {
+    if (globalForSync.__metaCommentsSync === current) {
+      delete globalForSync.__metaCommentsSync;
+    }
+  }
+}
+
+async function syncAllUnlocked(): Promise<SyncResult> {
   const active = await db.select().from(accounts).where(eq(accounts.status, 'active')).all();
   const total: SyncResult = { postsSeen: 0, commentsNew: 0, commentsUpdated: 0, errors: [] };
 
@@ -58,22 +77,45 @@ export async function syncAccount(account: Account): Promise<SyncResult> {
   try {
     const token = decrypt(account.accessToken);
     const platform = account.platform as Platform;
-    const since = new Date(Date.now() - env.backfillDays * 24 * 60 * 60 * 1000);
+    const now = new Date();
+    const commentSince = new Date(now.getTime() - env.backfillDays * 24 * 60 * 60 * 1000);
 
+    // O corte temporal vale para comentários, não para publicações. Se a mídia
+    // de 2024 receber comentário hoje, ela também precisa estar nesta lista.
     const remotePosts =
       platform === 'instagram'
-        ? await listInstagramMedia(account.externalId, token, since)
-        : await listFacebookPosts(account.externalId, token, since);
+        ? await listInstagramMedia(account.externalId, token, new Date(0))
+        : await listFacebookPosts(account.externalId, token, new Date(0));
 
     result.postsSeen = remotePosts.length;
 
-    for (const remotePost of remotePosts) {
+    await mapWithConcurrency(remotePosts, env.syncConcurrency, async (remotePost) => {
       const postRow = await upsertPost(account, remotePost);
+      const isNewKnownEmpty = postRow.isNew && remotePost.commentCount === 0;
 
-      // Publicação sem comentário nenhum: uma requisição por post que não
-      // renderia nada. Em contas com muitos posts é a diferença entre um sync
-      // de segundos e um de minutos.
-      if (remotePost.commentCount === 0) continue;
+      if (isNewKnownEmpty) {
+        await markPostCommentsSynced(postRow.id, remotePost.commentCount, now, true);
+        return;
+      }
+
+      const lastSyncMs = postRow.commentsSyncedAt?.getTime() ?? 0;
+      const countChanged =
+        remotePost.commentCount !== null &&
+        remotePost.commentCount !== postRow.reportedCommentCount;
+      const isRecent =
+        Boolean(remotePost.publishedAt) &&
+        remotePost.publishedAt!.getTime() >=
+          now.getTime() - env.recentPostSyncDays * 24 * 60 * 60 * 1000;
+      const needsReconciliation =
+        lastSyncMs > 0 &&
+        now.getTime() - lastSyncMs >= env.reconcileHours * 60 * 60 * 1000;
+      const shouldFetch =
+        lastSyncMs === 0 ||
+        countChanged ||
+        needsReconciliation ||
+        (isRecent && postRow.commentsAvailable);
+
+      if (!shouldFetch) return;
 
       try {
         const remoteComments =
@@ -81,24 +123,22 @@ export async function syncAccount(account: Account): Promise<SyncResult> {
             ? await listInstagramComments(remotePost.externalId, token)
             : await listFacebookComments(remotePost.externalId, token);
 
-        const counts = await upsertComments(account, postRow.id, remoteComments);
+        const counts = await upsertComments(account, postRow.id, remoteComments, commentSince);
         result.commentsNew += counts.inserted;
         result.commentsUpdated += counts.updated;
+        await markPostCommentsSynced(postRow.id, remotePost.commentCount, new Date(), true);
       } catch (error) {
         if (error instanceof GraphError && (error.isMissing || error.isPermission)) {
           // Dark post, mídia restrita ou post sem permissão de leitura de
           // comentários. Marcamos para a interface informar, em vez de exibir
           // zero como se não houvesse comentários.
-          await db
-            .update(posts)
-            .set({ commentsAvailable: false })
-            .where(eq(posts.id, postRow.id));
+          await markPostCommentsSynced(postRow.id, remotePost.commentCount, new Date(), false);
           result.errors.push(`Post ${remotePost.externalId}: ${error.message}`);
-          continue;
+          return;
         }
         throw error;
       }
-    }
+    });
 
     await db.update(accounts).set({ lastSyncedAt: new Date() }).where(eq(accounts.id, account.id));
     await db
@@ -134,9 +174,20 @@ export async function syncAccount(account: Account): Promise<SyncResult> {
 async function upsertPost(
   account: Account,
   remote: Awaited<ReturnType<typeof listFacebookPosts>>[number],
-): Promise<{ id: string }> {
+): Promise<{
+  id: string;
+  isNew: boolean;
+  reportedCommentCount: number | null;
+  commentsSyncedAt: Date | null;
+  commentsAvailable: boolean;
+}> {
   const existing = await db
-    .select({ id: posts.id })
+    .select({
+      id: posts.id,
+      reportedCommentCount: posts.reportedCommentCount,
+      commentsSyncedAt: posts.commentsSyncedAt,
+      commentsAvailable: posts.commentsAvailable,
+    })
     .from(posts)
     .where(and(eq(posts.accountId, account.id), eq(posts.externalId, remote.externalId)))
     .get();
@@ -152,10 +203,10 @@ async function upsertPost(
         publishedAt: remote.publishedAt,
       })
       .where(eq(posts.id, existing.id));
-    return existing;
+    return { ...existing, isNew: false };
   }
 
-  return db
+  const inserted = await db
     .insert(posts)
     .values({
       accountId: account.id,
@@ -167,8 +218,26 @@ async function upsertPost(
       mediaUrl: remote.mediaUrl,
       publishedAt: remote.publishedAt,
     })
-    .returning({ id: posts.id })
+    .returning({
+      id: posts.id,
+      reportedCommentCount: posts.reportedCommentCount,
+      commentsSyncedAt: posts.commentsSyncedAt,
+      commentsAvailable: posts.commentsAvailable,
+    })
     .get();
+  return { ...inserted, isNew: true };
+}
+
+async function markPostCommentsSynced(
+  postId: string,
+  reportedCommentCount: number | null,
+  commentsSyncedAt: Date,
+  commentsAvailable: boolean,
+): Promise<void> {
+  await db
+    .update(posts)
+    .set({ reportedCommentCount, commentsSyncedAt, commentsAvailable })
+    .where(eq(posts.id, postId));
 }
 
 /**
@@ -182,27 +251,40 @@ async function upsertComments(
   account: Account,
   postId: string,
   remote: RemoteComment[],
+  since: Date,
 ): Promise<{ inserted: number; updated: number }> {
-  if (remote.length === 0) return { inserted: 0, updated: 0 };
-
-  const externalIds = remote.map((c) => c.externalId);
-  const known = new Map(
-    (
-      await db
-        .select({ id: comments.id, externalId: comments.externalId, message: comments.message })
-        .from(comments)
-        .where(inArray(comments.externalId, externalIds))
-        .all()
-    ).map((row) => [row.externalId, row]),
+  // Buscar a publicação inteira é necessário para encontrar comentários novos
+  // em mídia antiga, mas só persistimos a janela configurada. Assim o primeiro
+  // sync correto não inunda inbox e IA com anos de histórico.
+  const relevantRemote = remote.filter(
+    (comment) => !comment.publishedAt || comment.publishedAt >= since,
   );
+  const knownRows = await db
+    .select({
+      id: comments.id,
+      externalId: comments.externalId,
+      message: comments.message,
+      publishedAt: comments.publishedAt,
+      missCount: comments.missCount,
+    })
+    .from(comments)
+    .where(
+      and(
+        eq(comments.postId, postId),
+        or(isNull(comments.publishedAt), gte(comments.publishedAt, since)),
+      ),
+    )
+    .all();
+  const known = new Map(knownRows.map((row) => [row.externalId, row]));
+  const remoteIds = new Set(relevantRemote.map((comment) => comment.externalId));
 
   let inserted = 0;
   let updated = 0;
 
-  for (const comment of remote) {
+  for (const comment of relevantRemote) {
     // Comentário publicado pela própria página: é a nossa resposta, não algo a
     // moderar. Fica no banco para aparecer na thread, mas fora da fila.
-    const isOwn = comment.authorExternalId === account.externalId;
+    const isOwn = isOwnComment(account, comment);
 
     const existing = known.get(comment.externalId);
     if (existing) {
@@ -213,16 +295,23 @@ async function upsertComments(
       await db
         .update(comments)
         .set({
+          postId,
+          parentExternalId: comment.parentExternalId,
+          authorExternalId: comment.authorExternalId,
           message: comment.message,
           likeCount: comment.likeCount,
           replyCount: comment.replyCount,
           isHidden: comment.isHidden,
           authorName: comment.authorName,
           authorPictureUrl: comment.authorPictureUrl,
+          isOwn,
+          publishedAt: comment.publishedAt ?? existing.publishedAt,
+          raw: comment.raw,
           // Reapareceu na API: não estava excluído.
           deletedOnPlatform: false,
           missCount: 0,
           syncedAt: new Date(),
+          ...(isOwn ? { status: 'answered' } : {}),
           ...(textChanged ? { analyzedAt: null } : {}),
         })
         .where(eq(comments.id, existing.id));
@@ -253,6 +342,22 @@ async function upsertComments(
     inserted++;
   }
 
+  // Ausência em uma leitura pode ser restrição temporária da API. Somente a
+  // segunda ausência consecutiva marca a linha como excluída.
+  for (const existing of knownRows) {
+    if (remoteIds.has(existing.externalId)) continue;
+    const nextMissCount = Math.min(2, existing.missCount + 1);
+    await db
+      .update(comments)
+      .set({
+        missCount: nextMissCount,
+        deletedOnPlatform: nextMissCount >= 2,
+        syncedAt: new Date(),
+      })
+      .where(eq(comments.id, existing.id));
+    updated++;
+  }
+
   // Um comentário de terceiro que já tem resposta nossa na thread não deveria
   // seguir como "novo" na fila só porque a resposta foi dada fora daqui.
   await markAnsweredFromOwnReplies(postId);
@@ -260,17 +365,38 @@ async function upsertComments(
   return { inserted, updated };
 }
 
+function isOwnComment(account: Account, comment: RemoteComment): boolean {
+  if (account.platform !== 'instagram') {
+    return comment.authorExternalId === account.externalId;
+  }
+
+  const normalizeUsername = (value: string | null): string =>
+    (value ?? '').trim().replace(/^@/, '').toLocaleLowerCase('en-US');
+  const ownUsername = normalizeUsername(account.username);
+  return Boolean(ownUsername) && normalizeUsername(comment.authorExternalId) === ownUsername;
+}
+
 /** Marca como respondido todo comentário que tenha uma resposta nossa. */
 async function markAnsweredFromOwnReplies(postId: string): Promise<void> {
   const ownReplies = await db
     .select({ parentExternalId: comments.parentExternalId })
     .from(comments)
-    .where(and(eq(comments.postId, postId), eq(comments.isOwn, true)))
+    .where(
+      and(
+        eq(comments.postId, postId),
+        eq(comments.isOwn, true),
+        eq(comments.deletedOnPlatform, false),
+      ),
+    )
     .all();
 
-  const parentIds = ownReplies
-    .map((reply) => reply.parentExternalId)
-    .filter((id): id is string => Boolean(id));
+  const parentIds = [
+    ...new Set(
+      ownReplies
+        .map((reply) => reply.parentExternalId)
+        .filter((id): id is string => Boolean(id)),
+    ),
+  ];
 
   if (parentIds.length === 0) return;
 
@@ -278,4 +404,30 @@ async function markAnsweredFromOwnReplies(postId: string): Promise<void> {
     .update(comments)
     .set({ status: 'answered' })
     .where(and(inArray(comments.externalId, parentIds), eq(comments.status, 'new')));
+}
+
+async function mapWithConcurrency<T>(
+  items: T[],
+  concurrency: number,
+  worker: (item: T) => Promise<void>,
+): Promise<void> {
+  let cursor = 0;
+  let firstError: unknown;
+
+  const runners = Array.from(
+    { length: Math.min(concurrency, Math.max(1, items.length)) },
+    async () => {
+      while (cursor < items.length && firstError === undefined) {
+        const index = cursor++;
+        try {
+          await worker(items[index]);
+        } catch (error) {
+          firstError ??= error;
+        }
+      }
+    },
+  );
+
+  await Promise.all(runners);
+  if (firstError !== undefined) throw firstError;
 }

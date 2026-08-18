@@ -129,7 +129,8 @@ export default async function DashboardPage({
         <div>
           <h2 className="font-medium">Volumetria diária</h2>
           <p className="text-xs text-ink-muted">
-            Comentários por dia, empilhados por sentimento. Dias sem comentário aparecem como zero.
+            Pela data em que o comentário foi publicado, no horário de São Paulo. Dias sem
+            comentário aparecem como zero.
           </p>
         </div>
         <DailyVolumeChart data={overview.daily} />

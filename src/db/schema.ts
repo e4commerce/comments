@@ -105,6 +105,14 @@ export const posts = sqliteTable(
     mediaUrl: text('media_url'),
     publishedAt: integer('published_at', { mode: 'timestamp_ms' }),
     /**
+     * Contagem informada pelo Meta na última leitura bem-sucedida dos
+     * comentários. Permite detectar comentário novo em publicação antiga sem
+     * baixar novamente toda a conversa a cada ciclo.
+     */
+    reportedCommentCount: integer('reported_comment_count'),
+    /** Última vez em que a coleção de comentários desta publicação foi lida. */
+    commentsSyncedAt: integer('comments_synced_at', { mode: 'timestamp_ms' }),
+    /**
      * Alguns posts (dark posts, mídia com restrição) não retornam comentários
      * mesmo existindo. Marcamos e informamos, em vez de mostrar zero como se
      * fosse ausência de comentários.

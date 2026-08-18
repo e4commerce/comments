@@ -232,7 +232,7 @@ export async function listInstagramComments(
     token,
     params: {
       fields:
-        'id,text,timestamp,like_count,username,hidden,replies{id,text,timestamp,like_count,username,hidden}',
+        'id,text,timestamp,like_count,username,hidden,replies.limit(100){id,text,timestamp,like_count,username,hidden}',
     },
     limit: 50,
     maxPages,

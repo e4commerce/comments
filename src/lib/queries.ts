@@ -188,8 +188,10 @@ export async function getOverview(days: number): Promise<Overview> {
     .where(window)
     .get();
 
-  // published_at é epoch em ms; `unixepoch` do SQLite espera segundos.
-  const dayExpr = sql<string>`date(${comments.publishedAt} / 1000, 'unixepoch', 'localtime')`;
+  // published_at é o timestamp original do Meta, não o instante do sync.
+  // Railway roda em UTC; -03:00 deixa a virada do dia explícita no fuso de
+  // São Paulo (o Brasil não adota horário de verão desde 2019).
+  const dayExpr = sql<string>`date(${comments.publishedAt} / 1000, 'unixepoch', '-3 hours')`;
 
   const dailyRows = await db
     .select({
@@ -259,11 +261,16 @@ function fillMissingDays(
 ): Overview['daily'] {
   const byDay = new Map(rows.map((row) => [row.day, row]));
   const result: Overview['daily'] = [];
+  const saoPauloDay = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Sao_Paulo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
 
   for (let offset = days - 1; offset >= 0; offset--) {
     const date = new Date(Date.now() - offset * 86_400_000);
-    // Chave local, para bater com o 'localtime' da consulta.
-    const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+    const key = saoPauloDay.format(date);
     result.push(byDay.get(key) ?? { day: key, total: 0, positive: 0, neutral: 0, negative: 0 });
   }
   return result;

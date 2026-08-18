@@ -57,6 +57,18 @@ export const env = {
   get backfillDays() {
     return Math.max(1, Number(optional('BACKFILL_DAYS', '90')));
   },
+  get autoSyncIntervalMinutes() {
+    return Math.max(0, Number(optional('AUTO_SYNC_INTERVAL_MINUTES', '5')));
+  },
+  get syncConcurrency() {
+    return Math.max(1, Math.min(10, Number(optional('SYNC_CONCURRENCY', '3'))));
+  },
+  get recentPostSyncDays() {
+    return Math.max(1, Number(optional('RECENT_POST_SYNC_DAYS', '7')));
+  },
+  get reconcileHours() {
+    return Math.max(1, Number(optional('SYNC_RECONCILE_HOURS', '24')));
+  },
 };
 
 /** Exigidas somente quando um código de acesso vai ser enviado. */

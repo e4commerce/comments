@@ -115,8 +115,8 @@ vez de oferecer uma ação que sempre falha:
 
 ## Arquitetura
 
-Um processo Next.js. Sem fila, sem Redis, sem worker separado — a sincronização roda em server
-action, sob demanda.
+Um processo Next.js. Sem fila, sem Redis, sem worker separado — a sincronização roda no próprio
+processo, automaticamente em produção e também sob demanda pelo botão.
 
 | Caminho | Conteúdo |
 | --- | --- |
@@ -167,6 +167,11 @@ O banco é um arquivo em `data/comments.db` (fora do Git). Backup é `cp`.
 
 ### Sincronização automática
 
-Hoje a sincronização é manual, pelo botão. Para deixá-la periódica, um cron chamando a
-aplicação é suficiente — não há fila a instalar. Um backfill grande pode levar minutos, então em
-hospedagem com timeout curto de request vale reduzir `BACKFILL_DAYS` na primeira carga.
+Em produção, a sincronização inicia 15 segundos depois do servidor e se repete a cada 5 minutos.
+`AUTO_SYNC_INTERVAL_MINUTES=0` desativa o agendador. O botão continua disponível e compartilha a
+mesma execução se for acionado enquanto o ciclo automático estiver rodando.
+
+O sync descobre todas as publicações acessíveis, porque comentário novo pode aparecer em mídia
+antiga. Ele só persiste comentários dentro de `BACKFILL_DAYS`, usa o contador do Meta para
+reconsultar publicações alteradas, relê as recentes em todo ciclo e reconcilia as demais a cada
+`SYNC_RECONCILE_HOURS`. Isso mantém a cobertura sem baixar anos de comentários a cada 5 minutos.
