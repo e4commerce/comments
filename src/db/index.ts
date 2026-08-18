@@ -12,13 +12,23 @@ import * as schema from './schema';
 const globalForDb = globalThis as unknown as { __sqlite?: Database.Database };
 
 function open(): Database.Database {
-  const path = process.env.DATABASE_PATH ?? './data/comments.db';
-  const dir = dirname(path);
-  if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+  // O Next importa os módulos das rotas em vários processos paralelos durante
+  // `next build`. Abrir o arquivo real nessa etapa faria cada processo tentar
+  // configurar WAL ao mesmo tempo e pode resultar em SQLITE_BUSY. As rotas são
+  // dinâmicas e não consultam dados no build, então uma conexão isolada em
+  // memória é suficiente para resolver os imports sem tocar no banco real.
+  const isBuild = process.env.MC_BUILD === '1';
+  const path = isBuild ? ':memory:' : (process.env.DATABASE_PATH ?? './data/comments.db');
+
+  if (!isBuild) {
+    const dir = dirname(path);
+    if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+  }
 
   const conn = new Database(path);
-  // WAL: leituras do dashboard não bloqueiam a escrita da sincronização.
-  conn.pragma('journal_mode = WAL');
+  // WAL: leituras do dashboard não bloqueiam a escrita da sincronização. Banco
+  // em memória não suporta WAL e existe somente no processo temporário de build.
+  if (!isBuild) conn.pragma('journal_mode = WAL');
   conn.pragma('foreign_keys = ON');
   // A sincronização escreve em lote enquanto a interface lê; sem isto, um
   // "database is locked" aparece como erro de página em vez de esperar.
