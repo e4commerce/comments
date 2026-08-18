@@ -255,8 +255,10 @@ export async function addCommentFilter(
   if (existing) return fail('Este filtro já foi adicionado.');
 
   await db.insert(commentFilters).values({ pattern, normalizedPattern });
+  revalidatePath('/');
   revalidatePath('/inbox');
-  return ok('Filtro adicionado. Os comentários correspondentes já foram ocultados da fila.');
+  revalidatePath('/settings');
+  return ok('Filtro adicionado. Os comentários foram ocultados da fila e das análises.');
 }
 
 export async function removeCommentFilter(filterId: string): Promise<ActionResult> {
@@ -270,8 +272,10 @@ export async function removeCommentFilter(filterId: string): Promise<ActionResul
   if (!existing) return fail('Filtro não encontrado.');
 
   await db.delete(commentFilters).where(eq(commentFilters.id, filterId));
+  revalidatePath('/');
   revalidatePath('/inbox');
-  return ok('Filtro removido. Os comentários correspondentes voltaram para a fila.');
+  revalidatePath('/settings');
+  return ok('Filtro removido. Os comentários voltaram para a fila e para as análises.');
 }
 
 // --- Sincronização e análise -------------------------------------------------

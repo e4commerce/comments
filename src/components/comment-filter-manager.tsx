@@ -32,8 +32,9 @@ export function CommentFilterManager({ filters }: { filters: CommentFilter[] }) 
       <div className="space-y-4 border-t border-line p-4">
         <p className="text-sm text-ink-muted">
           O filtro vale para Facebook, Instagram, todas as contas e todos os usuários. Ele não
-          exclui nem arquiva comentários: apenas os oculta desta aba. A correspondência ignora
-          maiúsculas e minúsculas e encontra o texto em qualquer parte do comentário.
+          exclui nem arquiva comentários: oculta desta aba e desconsidera dos indicadores e das
+          análises de IA. A correspondência ignora maiúsculas e minúsculas e encontra o texto em
+          qualquer parte do comentário.
         </p>
 
         <form action={formAction} className="flex flex-col gap-2 sm:flex-row sm:items-start">

@@ -1,6 +1,8 @@
 import { and, eq, isNull, isNotNull, ne, sql } from 'drizzle-orm';
 import { comments, db } from '@/db';
+import { excludeCommentFilterRules } from './comment-filters';
 import { env, requireOpenRouterKey } from './env';
+import { listCommentFilters } from './queries';
 import { INTENTS, MOTIVE_IDS, MOTIVES, SENTIMENTS, URGENCIES } from './taxonomy';
 
 /**
@@ -157,6 +159,7 @@ export interface AnalyzeResult {
  */
 export async function analyzePending(limit = 200): Promise<AnalyzeResult> {
   const result: AnalyzeResult = { analyzed: 0, skipped: 0, errors: [] };
+  const commentFilterRules = await listCommentFilters();
 
   const pending = await db
     .select({ id: comments.id, message: comments.message })
@@ -169,6 +172,7 @@ export async function analyzePending(limit = 200): Promise<AnalyzeResult> {
         eq(comments.deletedOnPlatform, false),
         isNotNull(comments.message),
         ne(comments.message, ''),
+        ...excludeCommentFilterRules(comments.message, commentFilterRules),
       ),
     )
     .orderBy(sql`${comments.publishedAt} desc`)
@@ -233,6 +237,7 @@ export async function analyzePending(limit = 200): Promise<AnalyzeResult> {
 
 /** Quantos comentários seguem sem análise. Alimenta o aviso na interface. */
 export async function countPendingAnalysis(): Promise<number> {
+  const commentFilterRules = await listCommentFilters();
   const row = await db
     .select({ count: sql<number>`count(*)` })
     .from(comments)
@@ -243,6 +248,7 @@ export async function countPendingAnalysis(): Promise<number> {
         eq(comments.deletedOnPlatform, false),
         isNotNull(comments.message),
         ne(comments.message, ''),
+        ...excludeCommentFilterRules(comments.message, commentFilterRules),
       ),
     )
     .get();

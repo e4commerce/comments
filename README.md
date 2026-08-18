@@ -15,7 +15,7 @@ curte, oculta, exclui ou arquiva, e vê a thread completa de respostas — as su
 terceiros. Filtros por situação, plataforma, sentimento, motivo, urgência, conta e busca no
 texto, todos na URL: `?sentiment=negative&motive=frete_entrega` é um link que você pode salvar.
 ADMs também podem cadastrar filtros globais por palavra, número ou frase para retirar automações
-da fila sem excluir ou arquivar os comentários no Meta.
+da fila e das análises — inclusive da IA — sem excluir ou arquivar os comentários no Meta.
 
 **Análise.** Volumetria diária empilhada por sentimento, participação de sentimento no período,
 os dez principais motivos (clicáveis, levam ao inbox filtrado) e uma leitura em texto gerada

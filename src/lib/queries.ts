@@ -8,6 +8,10 @@ import {
   db,
   posts,
 } from '@/db';
+import {
+  type CommentFilterRule,
+  excludeCommentFilterRules,
+} from './comment-filters';
 
 /**
  * Leituras da interface. Ficam juntas aqui para que inbox e dashboard usem
@@ -33,19 +37,11 @@ export interface InboxFilters {
   days?: number;
 }
 
-type CommentFilterRule = Pick<CommentFilter, 'normalizedPattern'>;
-
 function buildWhere(filters: InboxFilters, commentFilterRules: CommentFilterRule[]): SQL {
-  const clauses: SQL[] = [moderatable()];
-
-  // `instr`, em vez de LIKE, faz com que caracteres como `%` e `_` sejam
-  // tratados literalmente. Assim qualquer texto cadastrado pelo ADM significa
-  // exatamente o que está escrito na regra.
-  for (const rule of commentFilterRules) {
-    clauses.push(
-      sql`instr(mc_normalize_comment_text(coalesce(${comments.message}, '')), ${rule.normalizedPattern}) = 0`,
-    );
-  }
+  const clauses: SQL[] = [
+    moderatable(),
+    ...excludeCommentFilterRules(comments.message, commentFilterRules),
+  ];
 
   if (filters.status && filters.status !== 'all') {
     clauses.push(eq(comments.status, filters.status));
@@ -169,7 +165,12 @@ export interface Overview {
 
 export async function getOverview(days: number): Promise<Overview> {
   const since = new Date(Date.now() - days * 86_400_000);
-  const window = and(moderatable(), gte(comments.publishedAt, since))!;
+  const commentFilterRules = await listCommentFilters();
+  const window = and(
+    moderatable(),
+    ...excludeCommentFilterRules(comments.message, commentFilterRules),
+    gte(comments.publishedAt, since),
+  )!;
 
   const totals = await db
     .select({
@@ -300,8 +301,18 @@ export async function hasAnyAccount(): Promise<boolean> {
   return (row?.value ?? 0) > 0;
 }
 
-/** Total de comentários no banco, independente de janela ou filtro. */
+/** Total visível no painel, independente da janela de tempo. */
 export async function totalComments(): Promise<number> {
-  const row = await db.select({ value: count() }).from(comments).where(ne(comments.isOwn, true)).get();
+  const commentFilterRules = await listCommentFilters();
+  const row = await db
+    .select({ value: count() })
+    .from(comments)
+    .where(
+      and(
+        ne(comments.isOwn, true),
+        ...excludeCommentFilterRules(comments.message, commentFilterRules),
+      ),
+    )
+    .get();
   return row?.value ?? 0;
 }
