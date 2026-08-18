@@ -24,7 +24,7 @@ function optional(name: string, fallback: string): string {
   return value && value.trim() ? value : fallback;
 }
 
-/** Exigidas no boot. Sem qualquer uma delas nada funciona de forma segura. */
+/** Configuração base, validada quando cada valor é usado. */
 export const env = {
   get appUrl() {
     const url = required('APP_URL').replace(/\/+$/, '');
@@ -32,9 +32,6 @@ export const env = {
       throw new Error('APP_URL deve usar https em produção — o Meta rejeita redirect http.');
     }
     return url;
-  },
-  get appPassword() {
-    return required('APP_PASSWORD');
   },
   get authSecret() {
     return required('AUTH_SECRET');
@@ -61,6 +58,15 @@ export const env = {
     return Math.max(1, Number(optional('BACKFILL_DAYS', '90')));
   },
 };
+
+/** Exigidas somente quando um código de acesso vai ser enviado. */
+export function requireResendConfig(): { apiKey: string; from: string } {
+  return { apiKey: required('RESEND_API_KEY'), from: required('RESEND_FROM_EMAIL') };
+}
+
+export function hasResendConfig(): boolean {
+  return Boolean(process.env.RESEND_API_KEY?.trim() && process.env.RESEND_FROM_EMAIL?.trim());
+}
 
 /** Exigidas só quando algo vai efetivamente falar com a Graph API. */
 export function requireMetaConfig(): { appId: string; appSecret: string } {

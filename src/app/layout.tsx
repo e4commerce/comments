@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { isAuthenticated } from '@/lib/session';
+import { getCurrentUser } from '@/lib/session';
 import { logout } from './actions';
 import './globals.css';
 
@@ -10,19 +10,22 @@ export const metadata: Metadata = {
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  const authenticated = await isAuthenticated();
+  const user = await getCurrentUser();
 
   return (
     <html lang="pt-BR">
       <body className="min-h-screen font-sans">
-        {authenticated && (
+        {user && (
           <header className="border-b border-line bg-surface">
             <nav className="mx-auto flex max-w-6xl items-center gap-1 px-4 py-3">
               <span className="mr-4 font-semibold tracking-tight">Meta Comments</span>
               <NavLink href="/">Análise</NavLink>
               <NavLink href="/inbox">Comentários</NavLink>
-              <NavLink href="/settings">Configurações</NavLink>
-              <form action={logout} className="ml-auto">
+              {user.role === 'admin' && <NavLink href="/settings">Configurações</NavLink>}
+              <span className="ml-auto hidden max-w-56 truncate text-xs text-ink-muted sm:block">
+                {user.email}
+              </span>
+              <form action={logout} className="ml-auto sm:ml-0">
                 <button
                   type="submit"
                   className="rounded-md px-3 py-1.5 text-sm text-ink-muted hover:bg-surface-muted hover:text-ink"

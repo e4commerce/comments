@@ -4,7 +4,7 @@ import { accounts, db } from '@/db';
 import { encrypt } from '@/lib/crypto';
 import { env } from '@/lib/env';
 import { OAUTH_STATE_COOKIE, discoverPages, exchangeCodeForUserToken } from '@/lib/meta/oauth';
-import { isAuthenticated } from '@/lib/session';
+import { getCurrentUser } from '@/lib/session';
 
 /**
  * Retorno do OAuth. Troca o código pelos tokens de página e grava uma conta por
@@ -13,7 +13,9 @@ import { isAuthenticated } from '@/lib/session';
 export async function GET(request: NextRequest) {
   const back = (params: string) => NextResponse.redirect(new URL(`/settings?${params}`, env.appUrl));
 
-  if (!(await isAuthenticated())) return NextResponse.redirect(new URL('/login', env.appUrl));
+  const user = await getCurrentUser();
+  if (!user) return NextResponse.redirect(new URL('/login', env.appUrl));
+  if (user.role !== 'admin') return NextResponse.redirect(new URL('/', env.appUrl));
 
   const url = new URL(request.url);
   const code = url.searchParams.get('code');

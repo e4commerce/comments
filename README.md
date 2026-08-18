@@ -4,7 +4,8 @@ Plataforma de gestão e análise de comentários do Facebook e do Instagram. Tra
 das suas páginas para um só lugar, onde você responde, curte, oculta e exclui — e mostra
 volumetria, sentimento e os principais motivos, classificados por IA.
 
-Um app, um banco em arquivo, nenhum serviço externo além do Meta e do OpenRouter.
+Um app e um banco em arquivo. Além do Meta e do OpenRouter, usa o Resend para enviar códigos de
+acesso por e-mail.
 
 ## O que ela faz
 
@@ -31,18 +32,28 @@ pnpm dev                 # http://localhost:3000
 
 ### Variáveis mínimas para subir
 
-Só estas quatro são exigidas no boot:
+Estas variáveis configuram a aplicação e o login:
 
 | Variável | Como obter |
 | --- | --- |
 | `APP_URL` | `http://localhost:3000` em desenvolvimento |
-| `APP_PASSWORD` | a senha de acesso à plataforma: `openssl rand -base64 24` |
 | `AUTH_SECRET` | `openssl rand -base64 32` |
 | `ENCRYPTION_KEY` | `openssl rand -base64 32` (cifra os tokens do Meta em repouso) |
+| `RESEND_API_KEY` | chave criada em [resend.com/api-keys](https://resend.com/api-keys) |
+| `RESEND_FROM_EMAIL` | remetente de um domínio verificado no Resend |
+
+O login é por usuário, sem senha: o app envia um código de 6 dígitos que expira em 10 minutos.
+`pnpm db:push` cria as tabelas e garante o primeiro ADM:
+`thiago@muranojoias.com.br`. Depois de entrar, o ADM adiciona e desativa outros usuários em
+**Configurações → Usuários**.
+
+No Resend, verifique o domínio usado em `RESEND_FROM_EMAIL`. O remetente de teste
+`onboarding@resend.dev` só consegue enviar para o próprio e-mail da conta Resend.
 
 `META_APP_ID`/`META_APP_SECRET` e `OPENROUTER_API_KEY` podem ficar vazias: o processo sobe, e
 cada tela avisa qual variável falta em vez de falhar de forma opaca. Sem o Meta não há como
-conectar; sem o OpenRouter a moderação funciona e a análise fica vazia.
+conectar; sem o OpenRouter a moderação funciona e a análise fica vazia. Sem as variáveis do
+Resend, a tela de login abre, mas informa que ainda não consegue enviar o código.
 
 ### Ver funcionando antes de configurar o Meta
 
@@ -108,6 +119,7 @@ action, sob demanda.
 | Caminho | Conteúdo |
 | --- | --- |
 | [src/db/](src/db/) | Schema Drizzle (contas, posts, comentários, log de ações, execuções) |
+| [src/app/login/](src/app/login/) | Login por código de uso único enviado pelo Resend |
 | [src/lib/meta/](src/lib/meta/) | Graph API: transporte com backoff, OAuth, leitura e moderação |
 | [src/lib/sync.ts](src/lib/sync.ts) | Varredura de publicações e comentários |
 | [src/lib/ai.ts](src/lib/ai.ts) | OpenRouter: classificação em lote e resumo |

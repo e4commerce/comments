@@ -14,17 +14,23 @@ export const dynamic = 'force-dynamic';
 type SearchParams = Promise<Record<string, string | undefined>>;
 
 export default async function InboxPage({ searchParams }: { searchParams: SearchParams }) {
-  await requireSession();
+  const currentUser = await requireSession();
   const params = await searchParams;
 
   if (!(await hasAnyAccount())) {
     return (
       <EmptyState title="Conecte seu Meta para começar">
-        Nenhuma conta conectada ainda. Vá em{' '}
-        <Link href="/settings" className="text-accent hover:underline">
-          Configurações
-        </Link>{' '}
-        e autorize suas páginas.
+        {currentUser.role === 'admin' ? (
+          <>
+            Nenhuma conta conectada ainda. Vá em{' '}
+            <Link href="/settings" className="text-accent hover:underline">
+              Configurações
+            </Link>{' '}
+            e autorize suas páginas.
+          </>
+        ) : (
+          'Nenhuma conta Meta foi conectada ainda. Peça a um ADM para fazer a configuração.'
+        )}
       </EmptyState>
     );
   }

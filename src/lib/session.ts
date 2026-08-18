@@ -1,15 +1,14 @@
-import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
+import { createHmac, timingSafeEqual } from 'node:crypto';
+import { eq } from 'drizzle-orm';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
+import { db, type User, users } from '@/db';
 import { env } from './env';
 
 /**
- * Sessão de operador único: sem tabela de usuários, sem provider externo.
- * É um cookie assinado com AUTH_SECRET que diz apenas "esta pessoa provou saber
- * APP_PASSWORD, e a prova vale até tal data".
- *
- * Cabe aqui porque a plataforma é de uso próprio. Se um dia houver equipe, este
- * é o arquivo que muda — e nenhum outro depende do formato do cookie.
+ * Sessão própria e curta: o cookie contém apenas id do usuário e expiração,
+ * assinados com AUTH_SECRET. O e-mail e o papel continuam no banco; assim uma
+ * conta desativada perde acesso mesmo que ainda tenha um cookie válido.
  */
 
 const COOKIE = 'mc_session';
@@ -27,22 +26,9 @@ function safeEqual(a: string, b: string): boolean {
   return timingSafeEqual(bufA, bufB);
 }
 
-/**
- * Compara os digests, e não as senhas.
- *
- * `timingSafeEqual` exige buffers do mesmo tamanho, então comparar as senhas
- * cruas obrigaria a devolver `false` de imediato quando os tamanhos diferem — o
- * que vaza o tamanho da senha correta. Hashear primeiro deixa os dois lados com
- * 32 bytes sempre.
- */
-export function verifyPassword(candidate: string): boolean {
-  const digest = (value: string) => createHash('sha256').update(value).digest();
-  return timingSafeEqual(digest(candidate), digest(env.appPassword));
-}
-
-export async function createSession(): Promise<void> {
+export async function createSession(userId: string): Promise<void> {
   const expiresAt = Date.now() + MAX_AGE_SECONDS * 1000;
-  const payload = String(expiresAt);
+  const payload = Buffer.from(JSON.stringify({ userId, expiresAt })).toString('base64url');
   const store = await cookies();
   store.set(COOKIE, `${payload}.${sign(payload)}`, {
     httpOnly: true,
@@ -57,22 +43,51 @@ export async function destroySession(): Promise<void> {
   (await cookies()).delete(COOKIE);
 }
 
-export async function isAuthenticated(): Promise<boolean> {
+export async function getCurrentUser(): Promise<User | null> {
   const raw = (await cookies()).get(COOKIE)?.value;
-  if (!raw) return false;
+  if (!raw) return null;
 
   const [payload, signature] = raw.split('.');
-  if (!payload || !signature) return false;
-  if (!safeEqual(signature, sign(payload))) return false;
+  if (!payload || !signature) return null;
+  if (!safeEqual(signature, sign(payload))) return null;
 
-  const expiresAt = Number(payload);
-  return Number.isFinite(expiresAt) && expiresAt > Date.now();
+  try {
+    const parsed = JSON.parse(Buffer.from(payload, 'base64url').toString()) as {
+      userId?: unknown;
+      expiresAt?: unknown;
+    };
+    if (
+      typeof parsed.userId !== 'string' ||
+      typeof parsed.expiresAt !== 'number' ||
+      !Number.isFinite(parsed.expiresAt) ||
+      parsed.expiresAt <= Date.now()
+    ) {
+      return null;
+    }
+
+    const user = await db.select().from(users).where(eq(users.id, parsed.userId)).get();
+    return user?.isActive ? user : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function isAuthenticated(): Promise<boolean> {
+  return Boolean(await getCurrentUser());
 }
 
 /**
  * Porta de entrada de toda página e server action. Redireciona em vez de lançar,
  * para que sessão expirada não apareça como tela de erro.
  */
-export async function requireSession(): Promise<void> {
-  if (!(await isAuthenticated())) redirect('/login');
+export async function requireSession(): Promise<User> {
+  const user = await getCurrentUser();
+  if (!user) redirect('/login');
+  return user;
+}
+
+export async function requireAdmin(): Promise<User> {
+  const user = await requireSession();
+  if (user.role !== 'admin') redirect('/');
+  return user;
 }

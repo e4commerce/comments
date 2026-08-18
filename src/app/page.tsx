@@ -17,17 +17,23 @@ export default async function DashboardPage({
 }: {
   searchParams: Promise<{ days?: string }>;
 }) {
-  await requireSession();
+  const currentUser = await requireSession();
   const params = await searchParams;
 
   if (!(await hasAnyAccount())) {
     return (
       <EmptyState title="Bem-vindo ao Meta Comments">
-        Para começar, conecte suas páginas do Facebook e contas do Instagram em{' '}
-        <Link href="/settings" className="text-accent hover:underline">
-          Configurações
-        </Link>
-        .
+        {currentUser.role === 'admin' ? (
+          <>
+            Para começar, conecte suas páginas do Facebook e contas do Instagram em{' '}
+            <Link href="/settings" className="text-accent hover:underline">
+              Configurações
+            </Link>
+            .
+          </>
+        ) : (
+          'Nenhuma conta Meta foi conectada ainda. Peça a um ADM para fazer a configuração.'
+        )}
       </EmptyState>
     );
   }
@@ -70,18 +76,31 @@ export default async function DashboardPage({
       {pendingAnalysis > 0 && hasOpenRouterKey() && (
         <Notice>
           {formatNumber(pendingAnalysis)} comentário(s) sem análise de IA. Os gráficos de
-          sentimento e motivo só contam o que já foi analisado —{' '}
-          <Link href="/settings" className="underline">
-            analisar agora
-          </Link>
-          .
+          sentimento e motivo só contam o que já foi analisado
+          {currentUser.role === 'admin' ? (
+            <>
+              {' — '}
+              <Link href="/settings" className="underline">
+                analisar agora
+              </Link>
+            </>
+          ) : (
+            '.'
+          )}
+          {currentUser.role === 'admin' && '.'}
         </Notice>
       )}
 
       {!hasOpenRouterKey() && (
         <Notice>
-          <strong>Sem OpenRouter configurado.</strong> Volumetria funciona; sentimento e motivos
-          ficam vazios até preencher <code>OPENROUTER_API_KEY</code>.
+          <strong>Sem análise de IA configurada.</strong> Volumetria funciona; sentimento e motivos
+          ficam vazios
+          {currentUser.role === 'admin' && (
+            <>
+              {' até preencher '} <code>OPENROUTER_API_KEY</code>
+            </>
+          )}
+          .
         </Notice>
       )}
 

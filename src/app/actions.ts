@@ -2,14 +2,14 @@
 
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
-import { eq } from 'drizzle-orm';
-import { type Comment, accounts, actionLog, comments, db } from '@/db';
+import { and, count, eq } from 'drizzle-orm';
+import { type Comment, accounts, actionLog, comments, db, users } from '@/db';
 import { analyzePending, summarizeMotives } from '@/lib/ai';
 import { decrypt } from '@/lib/crypto';
 import * as meta from '@/lib/meta/api';
 import { GraphError } from '@/lib/meta/client';
 import { getOverview } from '@/lib/queries';
-import { createSession, destroySession, requireSession, verifyPassword } from '@/lib/session';
+import { destroySession, requireAdmin, requireSession } from '@/lib/session';
 import { syncAll } from '@/lib/sync';
 import { motiveLabel } from '@/lib/taxonomy';
 
@@ -294,22 +294,60 @@ export async function summarizePeriod(days: number): Promise<ActionResult> {
  * no Meta — desconectar aqui não apaga comentário publicado.
  */
 export async function disconnectAccount(accountId: string): Promise<ActionResult> {
-  await requireSession();
+  await requireAdmin();
   await db.delete(accounts).where(eq(accounts.id, accountId));
   revalidatePath('/settings');
   revalidatePath('/inbox');
   return ok('Conta desconectada.');
 }
 
-// --- Sessão ------------------------------------------------------------------
+// --- Usuários ----------------------------------------------------------------
 
-export async function login(_previous: ActionResult | null, formData: FormData): Promise<ActionResult> {
-  const password = String(formData.get('password') ?? '');
-  if (!verifyPassword(password)) {
-    return fail('Senha incorreta.');
+export async function addUser(
+  _previous: ActionResult | null,
+  formData: FormData,
+): Promise<ActionResult> {
+  await requireAdmin();
+
+  const email = String(formData.get('email') ?? '').trim().toLowerCase();
+  const role = String(formData.get('role') ?? 'user');
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return fail('Digite um e-mail válido.');
+  if (role !== 'admin' && role !== 'user') return fail('Perfil inválido.');
+
+  const existing = await db.select().from(users).where(eq(users.email, email)).get();
+  if (existing?.isActive) return fail('Este usuário já está ativo.');
+
+  if (existing) {
+    await db.update(users).set({ role, isActive: true }).where(eq(users.id, existing.id));
+  } else {
+    await db.insert(users).values({ email, role, isActive: true });
   }
-  await createSession();
-  redirect('/');
+
+  revalidatePath('/settings');
+  return ok('Usuário adicionado. Ele já pode receber um código pelo e-mail.');
+}
+
+export async function toggleUserActive(userId: string): Promise<ActionResult> {
+  const currentUser = await requireAdmin();
+  const target = await db.select().from(users).where(eq(users.id, userId)).get();
+  if (!target) return fail('Usuário não encontrado.');
+
+  if (target.id === currentUser.id && target.isActive) {
+    return fail('Você não pode desativar seu próprio usuário.');
+  }
+
+  if (target.isActive && target.role === 'admin') {
+    const activeAdmins = await db
+      .select({ value: count() })
+      .from(users)
+      .where(and(eq(users.role, 'admin'), eq(users.isActive, true)))
+      .get();
+    if ((activeAdmins?.value ?? 0) <= 1) return fail('É necessário manter pelo menos um ADM ativo.');
+  }
+
+  await db.update(users).set({ isActive: !target.isActive }).where(eq(users.id, target.id));
+  revalidatePath('/settings');
+  return ok(target.isActive ? 'Usuário desativado.' : 'Usuário reativado.');
 }
 
 export async function logout(): Promise<void> {

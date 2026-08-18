@@ -1,11 +1,12 @@
 import Link from 'next/link';
 import { desc } from 'drizzle-orm';
-import { accounts, db, syncRuns } from '@/db';
+import { accounts, db, syncRuns, users } from '@/db';
 import { ActionButton } from '@/components/action-button';
 import { Badge, Button, Card, EmptyState, Notice } from '@/components/ui';
+import { UserManagement } from '@/components/user-management';
 import { countPendingAnalysis } from '@/lib/ai';
 import { hasMetaConfig, hasOpenRouterKey } from '@/lib/env';
-import { requireSession } from '@/lib/session';
+import { requireAdmin } from '@/lib/session';
 import { disconnectAccount, runAnalysis, runSync } from '../actions';
 import { formatDateTime } from '@/lib/format';
 
@@ -16,18 +17,30 @@ export default async function SettingsPage({
 }: {
   searchParams: Promise<{ error?: string; conectadas?: string }>;
 }) {
-  await requireSession();
+  const currentUser = await requireAdmin();
   const params = await searchParams;
 
   const connected = await db.select().from(accounts).orderBy(accounts.platform, accounts.name).all();
   const runs = await db.select().from(syncRuns).orderBy(desc(syncRuns.startedAt)).limit(5).all();
   const pendingAnalysis = await countPendingAnalysis();
+  const managedUsers = db
+    .select()
+    .from(users)
+    .orderBy(users.email)
+    .all()
+    .map((user) => ({
+      id: user.id,
+      email: user.email,
+      role: user.role,
+      isActive: user.isActive,
+      lastLoginLabel: user.lastLoginAt ? formatDateTime(user.lastLoginAt) : 'nunca',
+    }));
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-xl font-semibold tracking-tight">Configurações</h1>
-        <p className="text-sm text-ink-muted">Contas conectadas, sincronização e análise.</p>
+        <p className="text-sm text-ink-muted">Contas conectadas, usuários, sincronização e análise.</p>
       </div>
 
       {params.error && <Notice tone="negative">Falha ao conectar: {params.error}</Notice>}
@@ -45,6 +58,8 @@ export default async function SettingsPage({
           não tem para onde apontar.
         </Notice>
       )}
+
+      <UserManagement users={managedUsers} currentUserId={currentUser.id} />
 
       <Card>
         <div className="flex flex-wrap items-center justify-between gap-3">

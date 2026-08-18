@@ -1,12 +1,16 @@
 import { NextResponse } from 'next/server';
 import { hasMetaConfig } from '@/lib/env';
 import { OAUTH_STATE_COOKIE, authorizeUrl, newState } from '@/lib/meta/oauth';
-import { isAuthenticated } from '@/lib/session';
+import { getCurrentUser } from '@/lib/session';
 
 /** Início do OAuth: guarda o `state` em cookie e manda o operador ao Meta. */
 export async function GET() {
-  if (!(await isAuthenticated())) {
+  const user = await getCurrentUser();
+  if (!user) {
     return NextResponse.redirect(new URL('/login', process.env.APP_URL ?? 'http://localhost:3000'));
+  }
+  if (user.role !== 'admin') {
+    return NextResponse.redirect(new URL('/', process.env.APP_URL ?? 'http://localhost:3000'));
   }
   if (!hasMetaConfig()) {
     return NextResponse.redirect(

@@ -2,8 +2,8 @@ import { sql } from 'drizzle-orm';
 import { index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core';
 
 /**
- * Tudo em uma base SQLite local. Um operador, uma organização — não há tenant,
- * então não há coluna de tenant em lugar nenhum.
+ * Tudo em uma base SQLite local. Uma organização com vários usuários — não há
+ * tenant, então não há coluna de tenant em lugar nenhum.
  *
  * IDs do Meta são strings opacas e ficam sempre em `externalId`. A chave
  * primária é nossa, para que um comentário excluído na plataforma não perca a
@@ -19,6 +19,40 @@ const createdAt = () =>
   integer('created_at', { mode: 'timestamp_ms' })
     .notNull()
     .default(sql`(unixepoch() * 1000)`);
+
+/** Pessoa autorizada a acessar o app. A autenticação é por código enviado ao e-mail. */
+export const users = sqliteTable(
+  'users',
+  {
+    id: id(),
+    /** Sempre normalizado em minúsculas antes de gravar. */
+    email: text('email').notNull(),
+    /** 'admin' | 'user' */
+    role: text('role').$type<'admin' | 'user'>().notNull().default('user'),
+    /** Desativar revoga a sessão na próxima requisição e impede novos códigos. */
+    isActive: integer('is_active', { mode: 'boolean' }).notNull().default(true),
+    lastLoginAt: integer('last_login_at', { mode: 'timestamp_ms' }),
+    createdAt: createdAt(),
+  },
+  (t) => [uniqueIndex('users_email').on(t.email)],
+);
+
+/** Código de uso único. Só o HMAC do código é persistido, nunca o código enviado. */
+export const loginCodes = sqliteTable(
+  'login_codes',
+  {
+    id: id(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    codeHash: text('code_hash').notNull(),
+    expiresAt: integer('expires_at', { mode: 'timestamp_ms' }).notNull(),
+    attempts: integer('attempts').notNull().default(0),
+    usedAt: integer('used_at', { mode: 'timestamp_ms' }),
+    createdAt: createdAt(),
+  },
+  (t) => [index('login_codes_user_created').on(t.userId, t.createdAt)],
+);
 
 /** Conta conectada: uma Página do Facebook ou uma conta do Instagram. */
 export const accounts = sqliteTable(
@@ -192,6 +226,7 @@ export const syncRuns = sqliteTable('sync_runs', {
 });
 
 export type Account = typeof accounts.$inferSelect;
+export type User = typeof users.$inferSelect;
 export type Post = typeof posts.$inferSelect;
 export type Comment = typeof comments.$inferSelect;
 export type SyncRun = typeof syncRuns.$inferSelect;
