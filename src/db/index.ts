@@ -31,6 +31,16 @@ function open(): Database.Database {
   // em memória não suporta WAL e existe somente no processo temporário de build.
   if (!isBuild) conn.pragma('journal_mode = WAL');
   conn.pragma('foreign_keys = ON');
+  // Esta tabela foi adicionada depois dos primeiros volumes de produção. A
+  // criação idempotente mantém esses bancos compatíveis mesmo quando o deploy
+  // apenas reinicia o app, sem executar `drizzle-kit push` antes do `next start`.
+  conn.exec(`
+    create table if not exists app_settings (
+      id text primary key not null,
+      count_hidden_unanswered integer default 1 not null,
+      updated_at integer default (unixepoch() * 1000) not null
+    )
+  `);
   // O lower() nativo do SQLite não cobre bem caracteres Unicode. Esta função
   // mantém filtros como "PÉSSIMO" insensíveis a maiúsculas e minúsculas.
   conn.function(
