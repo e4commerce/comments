@@ -3,12 +3,12 @@ import { Suspense } from 'react';
 import { RefreshCw } from 'lucide-react';
 import { ActionButton } from '@/components/action-button';
 import { CommentCard } from '@/components/comment-card';
-import { CommentFilterManager } from '@/components/comment-filter-manager';
 import { InboxFilters } from '@/components/inbox-filters';
 import { Badge, EmptyState, PageHeader } from '@/components/ui';
 import { formatNumber } from '@/lib/format';
 import {
   countsByStatus,
+  getAppSettings,
   hasAnyAccount,
   listAccountOptions,
   listCommentFilters,
@@ -59,13 +59,14 @@ export default async function InboxPage({ searchParams }: { searchParams: Search
     topLevelOnly: true,
   };
 
-  const [accounts, commentFilters] = await Promise.all([
+  const [accounts, commentFilters, appSettings] = await Promise.all([
     listAccountOptions(),
     listCommentFilters(),
+    getAppSettings(),
   ]);
   const [{ items, total, hasMore }, counts] = await Promise.all([
-    listInbox(filters, page, commentFilters),
-    countsByStatus(commentFilters),
+    listInbox(filters, page, commentFilters, appSettings.countHiddenUnanswered),
+    countsByStatus(commentFilters, appSettings.countHiddenUnanswered),
   ]);
 
   const queryFor = (nextPage: number) => {
@@ -97,8 +98,6 @@ export default async function InboxPage({ searchParams }: { searchParams: Search
           </ActionButton>
         }
       />
-
-      {currentUser.role === 'admin' && <CommentFilterManager filters={commentFilters} />}
 
       <Suspense fallback={null}>
         <InboxFilters accounts={accounts} />

@@ -223,6 +223,18 @@ export const commentFilters = sqliteTable(
   (t) => [uniqueIndex('comment_filters_normalized').on(t.normalizedPattern)],
 );
 
+/** Preferências globais de moderação. Há sempre no máximo uma linha (`global`). */
+export const appSettings = sqliteTable('app_settings', {
+  id: text('id').primaryKey(),
+  /** Se comentários ocultos e ainda sem resposta pertencem à fila `new`. */
+  countHiddenUnanswered: integer('count_hidden_unanswered', { mode: 'boolean' })
+    .notNull()
+    .default(true),
+  updatedAt: integer('updated_at', { mode: 'timestamp_ms' })
+    .notNull()
+    .default(sql`(unixepoch() * 1000)`),
+});
+
 /** Auditoria do que enviamos ao Meta. Erro da API fica registrado, não só logado. */
 export const actionLog = sqliteTable(
   'action_log',
@@ -258,4 +270,5 @@ export type User = typeof users.$inferSelect;
 export type Post = typeof posts.$inferSelect;
 export type Comment = typeof comments.$inferSelect;
 export type CommentFilter = typeof commentFilters.$inferSelect;
+export type AppSettings = typeof appSettings.$inferSelect;
 export type SyncRun = typeof syncRuns.$inferSelect;

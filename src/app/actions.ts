@@ -7,6 +7,7 @@ import {
   type Comment,
   accounts,
   actionLog,
+  appSettings,
   commentFilters,
   comments,
   db,
@@ -130,6 +131,7 @@ export async function replyToComment(commentId: string, message: string): Promis
       .where(eq(comments.id, comment.id));
 
     await log(comment.externalId, 'reply', 'ok', text.slice(0, 200));
+    revalidatePath('/');
     revalidatePath('/inbox');
     return ok('Resposta publicada.');
   } catch (error) {
@@ -187,6 +189,7 @@ export async function toggleHide(commentId: string): Promise<ActionResult> {
     );
     await db.update(comments).set({ isHidden: nextHidden }).where(eq(comments.id, comment.id));
     await log(comment.externalId, nextHidden ? 'hide' : 'unhide', 'ok');
+    revalidatePath('/');
     revalidatePath('/inbox');
     return ok(nextHidden ? 'Comentário oculto.' : 'Comentário reexibido.');
   } catch (error) {
@@ -214,6 +217,7 @@ export async function removeComment(commentId: string): Promise<ActionResult> {
       .set({ deletedOnPlatform: true, status: 'ignored' })
       .where(eq(comments.id, comment.id));
     await log(comment.externalId, 'delete', 'ok');
+    revalidatePath('/');
     revalidatePath('/inbox');
     return ok('Comentário excluído.');
   } catch (error) {
@@ -230,8 +234,32 @@ export async function setStatus(
 ): Promise<ActionResult> {
   await requireSession();
   await db.update(comments).set({ status }).where(eq(comments.id, commentId));
+  revalidatePath('/');
   revalidatePath('/inbox');
   return ok();
+}
+
+// --- Preferências globais ---------------------------------------------------
+
+export async function setCountHiddenUnanswered(enabled: boolean): Promise<ActionResult> {
+  await requireAdmin();
+
+  await db
+    .insert(appSettings)
+    .values({ id: 'global', countHiddenUnanswered: enabled, updatedAt: new Date() })
+    .onConflictDoUpdate({
+      target: appSettings.id,
+      set: { countHiddenUnanswered: enabled, updatedAt: new Date() },
+    });
+
+  revalidatePath('/');
+  revalidatePath('/inbox');
+  revalidatePath('/settings');
+  return ok(
+    enabled
+      ? 'Comentários ocultos voltaram a contar como “A responder”.'
+      : 'Comentários ocultos não contam mais como “A responder”.',
+  );
 }
 
 // --- Filtros globais da fila -------------------------------------------------

@@ -3,6 +3,8 @@ import { desc } from 'drizzle-orm';
 import { BrainCircuit, Plug, RefreshCw } from 'lucide-react';
 import { accounts, db, syncRuns, users } from '@/db';
 import { ActionButton } from '@/components/action-button';
+import { CommentCountSettings } from '@/components/comment-count-settings';
+import { CommentFilterManager } from '@/components/comment-filter-manager';
 import { Badge, Button, Card, EmptyState, Notice, PageHeader, SectionHeading } from '@/components/ui';
 import { UserManagement } from '@/components/user-management';
 import { countPendingAnalysis } from '@/lib/ai';
@@ -10,6 +12,7 @@ import { hasMetaConfig, hasOpenRouterKey } from '@/lib/env';
 import { requireAdmin } from '@/lib/session';
 import { disconnectAccount, runAnalysis, runSync } from '../actions';
 import { formatDateTime } from '@/lib/format';
+import { getAppSettings, listCommentFilters } from '@/lib/queries';
 
 export const dynamic = 'force-dynamic';
 
@@ -21,28 +24,29 @@ export default async function SettingsPage({
   const currentUser = await requireAdmin();
   const params = await searchParams;
 
-  const connected = await db.select().from(accounts).orderBy(accounts.platform, accounts.name).all();
-  const runs = await db.select().from(syncRuns).orderBy(desc(syncRuns.startedAt)).limit(5).all();
-  const pendingAnalysis = await countPendingAnalysis();
-  const managedUsers = db
-    .select()
-    .from(users)
-    .orderBy(users.email)
-    .all()
-    .map((user) => ({
-      id: user.id,
-      email: user.email,
-      role: user.role,
-      isActive: user.isActive,
-      lastLoginLabel: user.lastLoginAt ? formatDateTime(user.lastLoginAt) : 'nunca',
-    }));
+  const [connected, runs, pendingAnalysis, rawUsers, commentFilters, appSettings] =
+    await Promise.all([
+      db.select().from(accounts).orderBy(accounts.platform, accounts.name).all(),
+      db.select().from(syncRuns).orderBy(desc(syncRuns.startedAt)).limit(5).all(),
+      countPendingAnalysis(),
+      db.select().from(users).orderBy(users.email).all(),
+      listCommentFilters(),
+      getAppSettings(),
+    ]);
+  const managedUsers = rawUsers.map((user) => ({
+    id: user.id,
+    email: user.email,
+    role: user.role,
+    isActive: user.isActive,
+    lastLoginLabel: user.lastLoginAt ? formatDateTime(user.lastLoginAt) : 'nunca',
+  }));
 
   return (
     <div className="space-y-8">
       <PageHeader
         eyebrow="Administração"
         title="Configurações"
-        description="Contas conectadas, usuários, sincronização e análise."
+        description="Moderação, contas conectadas, usuários, sincronização e análise."
       />
 
       {params.error && <Notice tone="negative">Falha ao conectar: {params.error}</Notice>}
@@ -62,6 +66,17 @@ export default async function SettingsPage({
       )}
 
       <UserManagement users={managedUsers} currentUserId={currentUser.id} />
+
+      <section className="space-y-4">
+        <SectionHeading
+          title="Moderação de comentários"
+          description="Preferências globais da fila e regras que valem para todas as contas."
+        />
+        <CommentCountSettings
+          initialCountHiddenUnanswered={appSettings.countHiddenUnanswered}
+        />
+        <CommentFilterManager filters={commentFilters} />
+      </section>
 
       <Card className="p-5 sm:p-6">
         <SectionHeading

@@ -1,5 +1,6 @@
 import { type SQL, and, count, desc, eq, gte, inArray, isNull, like, ne, sql } from 'drizzle-orm';
 import {
+  appSettings,
   type Comment,
   type CommentFilter,
   accounts,
@@ -37,7 +38,11 @@ export interface InboxFilters {
   days?: number;
 }
 
-function buildWhere(filters: InboxFilters, commentFilterRules: CommentFilterRule[]): SQL {
+function buildWhere(
+  filters: InboxFilters,
+  commentFilterRules: CommentFilterRule[],
+  countHiddenUnanswered = true,
+): SQL {
   const clauses: SQL[] = [
     moderatable(),
     ...excludeCommentFilterRules(comments.message, commentFilterRules),
@@ -45,6 +50,9 @@ function buildWhere(filters: InboxFilters, commentFilterRules: CommentFilterRule
 
   if (filters.status && filters.status !== 'all') {
     clauses.push(eq(comments.status, filters.status));
+  }
+  if (filters.status === 'new' && !countHiddenUnanswered) {
+    clauses.push(eq(comments.isHidden, false));
   }
   if (filters.platform && filters.platform !== 'all') {
     clauses.push(eq(comments.platform, filters.platform));
@@ -89,8 +97,11 @@ export async function listInbox(
   filters: InboxFilters,
   page = 0,
   commentFilterRules: CommentFilterRule[] = [],
+  countHiddenUnanswered?: boolean,
 ): Promise<{ items: InboxItem[]; total: number; hasMore: boolean }> {
-  const where = buildWhere(filters, commentFilterRules);
+  const shouldCountHidden =
+    countHiddenUnanswered ?? (await getAppSettings()).countHiddenUnanswered;
+  const where = buildWhere(filters, commentFilterRules, shouldCountHidden);
 
   const totalRow = await db.select({ value: count() }).from(comments).where(where).get();
   const total = totalRow?.value ?? 0;
@@ -165,19 +176,25 @@ export interface Overview {
 
 export async function getOverview(days: number): Promise<Overview> {
   const since = new Date(Date.now() - days * 86_400_000);
-  const commentFilterRules = await listCommentFilters();
+  const [commentFilterRules, settings] = await Promise.all([
+    listCommentFilters(),
+    getAppSettings(),
+  ]);
   const window = and(
     moderatable(),
     ...excludeCommentFilterRules(comments.message, commentFilterRules),
     gte(comments.publishedAt, since),
   )!;
+  const pendingReply = settings.countHiddenUnanswered
+    ? eq(comments.status, 'new')
+    : and(eq(comments.status, 'new'), eq(comments.isHidden, false))!;
 
   const totals = await db
     .select({
       total: count(),
       analyzed: sql<number>`sum(case when ${comments.analyzedAt} is not null then 1 else 0 end)`,
-      pendingReply: sql<number>`sum(case when ${comments.status} = 'new' then 1 else 0 end)`,
-      highUrgency: sql<number>`sum(case when ${comments.urgency} = 'high' and ${comments.status} = 'new' then 1 else 0 end)`,
+      pendingReply: sql<number>`sum(case when ${pendingReply} then 1 else 0 end)`,
+      highUrgency: sql<number>`sum(case when ${and(eq(comments.urgency, 'high'), pendingReply)} then 1 else 0 end)`,
       questions: sql<number>`sum(case when ${comments.isQuestion} = 1 then 1 else 0 end)`,
       spam: sql<number>`sum(case when ${comments.isSpam} = 1 then 1 else 0 end)`,
       positive: sql<number>`sum(case when ${comments.sentiment} = 'positive' then 1 else 0 end)`,
@@ -286,20 +303,46 @@ export async function listCommentFilters(): Promise<CommentFilter[]> {
   return db.select().from(commentFilters).orderBy(commentFilters.createdAt).all();
 }
 
+export interface GlobalAppSettings {
+  countHiddenUnanswered: boolean;
+}
+
+/** Preferências globais com fallback compatível para bancos ainda sem uma linha. */
+export async function getAppSettings(): Promise<GlobalAppSettings> {
+  const row = await db
+    .select({ countHiddenUnanswered: appSettings.countHiddenUnanswered })
+    .from(appSettings)
+    .where(eq(appSettings.id, 'global'))
+    .get();
+
+  return { countHiddenUnanswered: row?.countHiddenUnanswered ?? true };
+}
+
 /** Contagem por status, para os contadores das abas do inbox. */
 export async function countsByStatus(
   commentFilterRules: CommentFilterRule[] = [],
+  countHiddenUnanswered?: boolean,
 ): Promise<Record<string, number>> {
-  const rows = await db
-    .select({ status: comments.status, count: count() })
+  const shouldCountHidden =
+    countHiddenUnanswered ?? (await getAppSettings()).countHiddenUnanswered;
+  const pendingReply = shouldCountHidden
+    ? eq(comments.status, 'new')
+    : and(eq(comments.status, 'new'), eq(comments.isHidden, false))!;
+  const row = await db
+    .select({
+      new: sql<number>`sum(case when ${pendingReply} then 1 else 0 end)`,
+      answered: sql<number>`sum(case when ${comments.status} = 'answered' then 1 else 0 end)`,
+      ignored: sql<number>`sum(case when ${comments.status} = 'ignored' then 1 else 0 end)`,
+    })
     .from(comments)
     .where(buildWhere({}, commentFilterRules))
-    .groupBy(comments.status)
-    .all();
+    .get();
 
-  const result: Record<string, number> = { new: 0, answered: 0, ignored: 0 };
-  for (const row of rows) result[row.status] = row.count;
-  return result;
+  return {
+    new: row?.new ?? 0,
+    answered: row?.answered ?? 0,
+    ignored: row?.ignored ?? 0,
+  };
 }
 
 /** Existe alguma conta conectada? Decide entre onboarding e interface normal. */
