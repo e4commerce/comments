@@ -60,6 +60,8 @@ export function InboxFilters({
       className={`overflow-hidden rounded-xl border border-line-subtle bg-surface shadow-card transition-opacity ${
         pending ? 'opacity-60' : ''
       }`}
+      data-inbox-pending={pending ? 'true' : 'false'}
+      aria-busy={pending}
     >
       <div className="flex flex-col gap-3 p-3.5 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex max-w-full items-center gap-1 overflow-x-auto rounded-full bg-surface-muted p-1">

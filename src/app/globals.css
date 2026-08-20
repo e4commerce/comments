@@ -54,6 +54,7 @@
   --shadow-sm: 0 1px 3px rgb(10 10 10 / 6%), 0 1px 2px rgb(10 10 10 / 4%);
   --shadow-md: 0 8px 28px rgb(10 10 10 / 9%);
   --shadow-focus: 0 0 0 3px rgb(10 10 10 / 12%);
+  --skeleton-highlight: rgb(255 255 255 / 78%);
 
   /* Sentimento mantém o par divergente validado para daltonismo. */
   --sentiment-positive: #2a78d6;
@@ -135,6 +136,7 @@
     --sentiment-neutral: #6f6d67;
     --sentiment-negative: #e66767;
     --shadow-focus: 0 0 0 3px rgb(250 250 247 / 14%);
+    --skeleton-highlight: rgb(255 255 255 / 6%);
 }
 
 * {
@@ -191,6 +193,58 @@ textarea:focus-visible {
   outline: none;
   border-color: var(--border-focus);
   box-shadow: var(--shadow-focus);
+}
+
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  background: var(--surface-subtle);
+}
+
+.skeleton::after {
+  position: absolute;
+  inset: 0;
+  content: '';
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    var(--skeleton-highlight) 50%,
+    transparent 100%
+  );
+  transform: translateX(-100%);
+  animation: skeleton-shimmer 1.65s ease-in-out infinite;
+}
+
+@keyframes skeleton-shimmer {
+  to {
+    transform: translateX(100%);
+  }
+}
+
+.inbox-results-content,
+.inbox-results-pending {
+  transition: opacity 180ms ease, transform 220ms ease, visibility 180ms;
+}
+
+.inbox-results-pending {
+  position: absolute;
+  inset: 0;
+  visibility: hidden;
+  opacity: 0;
+  transform: translateY(4px);
+  pointer-events: none;
+}
+
+.inbox-page:has([data-inbox-pending='true']) .inbox-results-content {
+  visibility: hidden;
+  opacity: 0;
+  transform: translateY(-4px);
+}
+
+.inbox-page:has([data-inbox-pending='true']) .inbox-results-pending {
+  visibility: visible;
+  opacity: 1;
+  transform: translateY(0);
 }
 
 @media (prefers-reduced-motion: reduce) {

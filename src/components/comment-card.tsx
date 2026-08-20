@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
+import { useEffect, useRef, useState, useTransition } from 'react';
 import {
   Archive,
   ExternalLink,
@@ -32,6 +33,8 @@ import {
 } from '@/lib/taxonomy';
 import { Badge, Button, Card } from './ui';
 
+export type InboxStatus = 'new' | 'answered' | 'ignored' | 'all';
+
 /**
  * Um comentário com sua thread e todas as ações.
  *
@@ -39,38 +42,99 @@ import { Badge, Button, Card } from './ui';
  * não desabilitadas: um botão cinza sugere "falta permissão", quando o caso é
  * que o recurso não existe na API do Instagram.
  */
-export function CommentCard({ item }: { item: InboxItem }) {
+export function CommentCard({
+  item,
+  activeStatus,
+}: {
+  item: InboxItem;
+  activeStatus: InboxStatus;
+}) {
   const { comment, replies, postPermalink, postMessage, accountName } = item;
+  const router = useRouter();
   const [replyOpen, setReplyOpen] = useState(false);
   const [draft, setDraft] = useState('');
   const [feedback, setFeedback] = useState<{ ok: boolean; message: string } | null>(null);
+  const [exiting, setExiting] = useState(false);
   const [pending, startTransition] = useTransition();
+  const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const refreshStarted = useRef(false);
 
   const canLike = comment.platform === 'facebook';
 
-  function run(action: () => Promise<{ ok: boolean; message?: string }>, confirmText?: string) {
-    if (confirmText && !window.confirm(confirmText)) return;
+  useEffect(
+    () => () => {
+      if (refreshTimer.current) clearTimeout(refreshTimer.current);
+    },
+    [],
+  );
+
+  function leavesCurrentCategory(nextStatus: Exclude<InboxStatus, 'all'>): boolean {
+    return activeStatus !== 'all' && activeStatus !== nextStatus;
+  }
+
+  function refreshAfterExit() {
+    if (refreshStarted.current) return;
+    refreshStarted.current = true;
+    if (refreshTimer.current) clearTimeout(refreshTimer.current);
+    router.refresh();
+  }
+
+  function beginExit() {
+    setExiting(true);
+    // Fallback para navegadores que não disparem transitionend (ou se a aba
+    // perder foco no meio da animação).
+    refreshTimer.current = setTimeout(refreshAfterExit, 440);
+  }
+
+  function run(
+    action: () => Promise<{ ok: boolean; message?: string }>,
+    options: { confirmText?: string; leaveAfterSuccess?: boolean } = {},
+  ) {
+    if (options.confirmText && !window.confirm(options.confirmText)) return;
     startTransition(async () => {
       const result = await action();
       setFeedback(result.message ? { ok: result.ok, message: result.message } : null);
+      if (result.ok && options.leaveAfterSuccess) beginExit();
     });
   }
 
   function submitReply() {
     const text = draft.trim();
     if (!text) return;
+    const leaveAfterSuccess = leavesCurrentCategory('answered');
     startTransition(async () => {
-      const result = await replyToComment(comment.id, text);
+      const result = await replyToComment(comment.id, text, !leaveAfterSuccess);
       setFeedback(result.message ? { ok: result.ok, message: result.message } : null);
       if (result.ok) {
         setDraft('');
         setReplyOpen(false);
+        if (leaveAfterSuccess) beginExit();
       }
     });
   }
 
   return (
-    <Card className="overflow-hidden p-0 transition-colors hover:border-line">
+    <div
+      className={`comment-card-shell grid origin-top transition-[grid-template-rows,opacity,transform] duration-[360ms] ease-[cubic-bezier(0.22,1,0.36,1)] ${
+        exiting
+          ? 'grid-rows-[0fr] -translate-y-2 scale-[0.985] opacity-0'
+          : 'grid-rows-[1fr] translate-y-0 scale-100 opacity-100'
+      }`}
+      data-comment-id={comment.id}
+      aria-hidden={exiting}
+      inert={exiting ? true : undefined}
+      onTransitionEnd={(event) => {
+        if (
+          exiting &&
+          event.target === event.currentTarget &&
+          event.propertyName === 'grid-template-rows'
+        ) {
+          refreshAfterExit();
+        }
+      }}
+    >
+      <div className="min-h-0 overflow-hidden pb-4">
+        <Card className="overflow-hidden p-0 transition-colors hover:border-line">
       <div className="space-y-4 p-5">
         {/* Cabeçalho: quem, quando, onde */}
         <div className="flex flex-wrap items-start gap-3">
@@ -195,7 +259,12 @@ export function CommentCard({ item }: { item: InboxItem }) {
           <Button
             size="sm"
             variant="ghost"
-            onClick={() => run(() => setStatus(comment.id, 'ignored'))}
+            onClick={() => {
+              const leaveAfterSuccess = leavesCurrentCategory('ignored');
+              run(() => setStatus(comment.id, 'ignored', !leaveAfterSuccess), {
+                leaveAfterSuccess,
+              });
+            }}
             disabled={pending}
           >
             <Archive size={13} strokeWidth={1.8} />
@@ -205,7 +274,12 @@ export function CommentCard({ item }: { item: InboxItem }) {
           <Button
             size="sm"
             variant="ghost"
-            onClick={() => run(() => setStatus(comment.id, 'new'))}
+            onClick={() => {
+              const leaveAfterSuccess = leavesCurrentCategory('new');
+              run(() => setStatus(comment.id, 'new', !leaveAfterSuccess), {
+                leaveAfterSuccess,
+              });
+            }}
             disabled={pending}
           >
             <RotateCcw size={13} strokeWidth={1.8} />
@@ -220,8 +294,12 @@ export function CommentCard({ item }: { item: InboxItem }) {
           disabled={pending}
           onClick={() =>
             run(
-              () => removeComment(comment.id),
-              'Excluir este comentário no Meta? A ação é permanente e não pode ser desfeita.',
+              () => removeComment(comment.id, false),
+              {
+                confirmText:
+                  'Excluir este comentário no Meta? A ação é permanente e não pode ser desfeita.',
+                leaveAfterSuccess: true,
+              },
             )
           }
         >
@@ -264,6 +342,8 @@ export function CommentCard({ item }: { item: InboxItem }) {
           {feedback.message}
         </p>
       )}
-    </Card>
+        </Card>
+      </div>
+    </div>
   );
 }

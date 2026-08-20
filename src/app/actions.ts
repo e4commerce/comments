@@ -90,7 +90,11 @@ async function loadComment(
 
 // --- Moderação ---------------------------------------------------------------
 
-export async function replyToComment(commentId: string, message: string): Promise<ActionResult> {
+export async function replyToComment(
+  commentId: string,
+  message: string,
+  revalidateImmediately = true,
+): Promise<ActionResult> {
   await requireSession();
 
   const text = message.trim();
@@ -131,8 +135,10 @@ export async function replyToComment(commentId: string, message: string): Promis
       .where(eq(comments.id, comment.id));
 
     await log(comment.externalId, 'reply', 'ok', text.slice(0, 200));
-    revalidatePath('/');
-    revalidatePath('/inbox');
+    if (revalidateImmediately) {
+      revalidatePath('/');
+      revalidatePath('/inbox');
+    }
     return ok('Resposta publicada.');
   } catch (error) {
     const detail = explain(error, 'responder');
@@ -203,7 +209,10 @@ export async function toggleHide(commentId: string): Promise<ActionResult> {
  * Exclui no Meta. A linha local permanece, marcada — o histórico de moderação
  * não deve desaparecer junto com o comentário.
  */
-export async function removeComment(commentId: string): Promise<ActionResult> {
+export async function removeComment(
+  commentId: string,
+  revalidateImmediately = true,
+): Promise<ActionResult> {
   await requireSession();
 
   const loaded = await loadComment(commentId);
@@ -217,8 +226,10 @@ export async function removeComment(commentId: string): Promise<ActionResult> {
       .set({ deletedOnPlatform: true, status: 'ignored' })
       .where(eq(comments.id, comment.id));
     await log(comment.externalId, 'delete', 'ok');
-    revalidatePath('/');
-    revalidatePath('/inbox');
+    if (revalidateImmediately) {
+      revalidatePath('/');
+      revalidatePath('/inbox');
+    }
     return ok('Comentário excluído.');
   } catch (error) {
     const detail = explain(error, 'excluir');
@@ -231,11 +242,14 @@ export async function removeComment(commentId: string): Promise<ActionResult> {
 export async function setStatus(
   commentId: string,
   status: 'new' | 'answered' | 'ignored',
+  revalidateImmediately = true,
 ): Promise<ActionResult> {
   await requireSession();
   await db.update(comments).set({ status }).where(eq(comments.id, commentId));
-  revalidatePath('/');
-  revalidatePath('/inbox');
+  if (revalidateImmediately) {
+    revalidatePath('/');
+    revalidatePath('/inbox');
+  }
   return ok();
 }
 

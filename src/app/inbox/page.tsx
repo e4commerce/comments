@@ -2,8 +2,9 @@ import Link from 'next/link';
 import { Suspense } from 'react';
 import { RefreshCw } from 'lucide-react';
 import { ActionButton } from '@/components/action-button';
-import { CommentCard } from '@/components/comment-card';
+import { CommentCard, type InboxStatus } from '@/components/comment-card';
 import { InboxFilters } from '@/components/inbox-filters';
+import { CommentListSkeleton, Skeleton } from '@/components/loading-skeleton';
 import { Badge, EmptyState, PageHeader } from '@/components/ui';
 import { formatNumber } from '@/lib/format';
 import { inboxSortLabel, normalizeInboxSort } from '@/lib/inbox-sort';
@@ -47,10 +48,13 @@ export default async function InboxPage({ searchParams }: { searchParams: Search
   const page = Math.max(0, Number(params.page ?? 0) || 0);
   const sort = normalizeInboxSort(params.sort);
   const days = [7, 30, 90].includes(Number(params.days)) ? Number(params.days) : undefined;
+  const status: InboxStatus = ['new', 'answered', 'ignored', 'all'].includes(params.status ?? '')
+    ? (params.status as InboxStatus)
+    : 'new';
   const filters = {
     // O default é a fila de trabalho, não "todos": abrir o inbox deve mostrar o
     // que falta responder.
-    status: params.status ?? 'new',
+    status,
     platform: params.platform,
     sentiment: params.sentiment,
     motive: params.motive,
@@ -83,7 +87,7 @@ export default async function InboxPage({ searchParams }: { searchParams: Search
   };
 
   return (
-    <div className="space-y-7">
+    <div className="inbox-page space-y-7">
       <PageHeader
         eyebrow="Caixa de entrada"
         title="Comentários"
@@ -108,46 +112,66 @@ export default async function InboxPage({ searchParams }: { searchParams: Search
         <InboxFilters accounts={accounts} />
       </Suspense>
 
-      {items.length === 0 ? (
-        <EmptyState title="Nada aqui com esses filtros">
-          Ajuste os filtros acima, ou rode uma sincronização para buscar comentários novos.
-        </EmptyState>
-      ) : (
-        <>
-          <div className="flex items-center gap-3">
-            <span className="h-px flex-1 bg-line-subtle" />
-            <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-ink-muted">
-              {formatNumber(total)} conversa(s) · {inboxSortLabel(sort).toLocaleLowerCase('pt-BR')}
-            </p>
-            <span className="h-px flex-1 bg-line-subtle" />
-          </div>
-          <div className="space-y-4">
-            {items.map((item) => (
-              <CommentCard key={item.comment.id} item={item} />
-            ))}
-          </div>
-        </>
-      )}
-
-      {(page > 0 || hasMore) && (
-        <div className="flex items-center justify-between border-t border-line-subtle pt-5">
-          {page > 0 ? (
-            <Link href={queryFor(page - 1)} className="text-sm font-medium text-ink hover:underline">
-              ← Anteriores
-            </Link>
+      <div className="inbox-results relative">
+        <div className="inbox-results-content space-y-7">
+          {items.length === 0 ? (
+            <EmptyState title="Nada aqui com esses filtros">
+              Ajuste os filtros acima, ou rode uma sincronização para buscar comentários novos.
+            </EmptyState>
           ) : (
-            <span />
+            <>
+              <div className="flex items-center gap-3">
+                <span className="h-px flex-1 bg-line-subtle" />
+                <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-ink-muted">
+                  {formatNumber(total)} conversa(s) ·{' '}
+                  {inboxSortLabel(sort).toLocaleLowerCase('pt-BR')}
+                </p>
+                <span className="h-px flex-1 bg-line-subtle" />
+              </div>
+              <div className="-mb-4">
+                {items.map((item) => (
+                  <CommentCard key={item.comment.id} item={item} activeStatus={status} />
+                ))}
+              </div>
+            </>
           )}
-          <span className="text-xs text-ink-muted">Página {page + 1}</span>
-          {hasMore ? (
-            <Link href={queryFor(page + 1)} className="text-sm font-medium text-ink hover:underline">
-              Próximos →
-            </Link>
-          ) : (
-            <span />
+
+          {(page > 0 || hasMore) && (
+            <div className="flex items-center justify-between border-t border-line-subtle pt-5">
+              {page > 0 ? (
+                <Link
+                  href={queryFor(page - 1)}
+                  className="text-sm font-medium text-ink hover:underline"
+                >
+                  ← Anteriores
+                </Link>
+              ) : (
+                <span />
+              )}
+              <span className="text-xs text-ink-muted">Página {page + 1}</span>
+              {hasMore ? (
+                <Link
+                  href={queryFor(page + 1)}
+                  className="text-sm font-medium text-ink hover:underline"
+                >
+                  Próximos →
+                </Link>
+              ) : (
+                <span />
+              )}
+            </div>
           )}
         </div>
-      )}
+
+        <div className="inbox-results-pending space-y-7">
+          <div className="flex items-center gap-3">
+            <span className="h-px flex-1 bg-line-subtle" />
+            <Skeleton className="h-3 w-40 rounded" />
+            <span className="h-px flex-1 bg-line-subtle" />
+          </div>
+          <CommentListSkeleton />
+        </div>
+      </div>
     </div>
   );
 }
