@@ -102,9 +102,14 @@ export interface InboxItem {
   postPermalink: string | null;
   postMessage: string | null;
   accountName: string;
-  /** Respostas na thread, nossas e de terceiros, em ordem cronológica. */
-  replies: Comment[];
+  /** Respostas na árvore, agrupadas sob o comentário ao qual respondem. */
+  replies: InboxReply[];
 }
+
+export type InboxReply = Comment & {
+  threadDepth: number;
+  replyToAuthorName: string | null;
+};
 
 const PAGE_SIZE = 25;
 
@@ -114,10 +119,18 @@ const PAGE_SIZE = 25;
  */
 const lastActivityAt = sql<number>`coalesce(
   (
-    select max(thread_reply.published_at)
-    from comments as thread_reply
-    where thread_reply.parent_external_id = ${comments.externalId}
-      and thread_reply.deleted_on_platform = 0
+    with recursive thread(external_id, published_at) as (
+      select thread_reply.external_id, thread_reply.published_at
+      from comments as thread_reply
+      where thread_reply.parent_external_id = ${comments.externalId}
+        and thread_reply.deleted_on_platform = 0
+      union all
+      select child.external_id, child.published_at
+      from comments as child
+      inner join thread on child.parent_external_id = thread.external_id
+      where child.deleted_on_platform = 0
+    )
+    select max(thread.published_at) from thread
   ),
   ${comments.publishedAt}
 )`;
@@ -174,30 +187,75 @@ export async function listInbox(
     .offset(page * PAGE_SIZE)
     .all();
 
-  // As respostas de todos os comentários da página em uma consulta, em vez de
-  // uma por comentário.
+  // Busca a árvore por níveis. Normalmente existe só um nível; o loop torna
+  // visíveis também as respostas publicadas diretamente em subcomentários.
   const externalIds = rows.map((row) => row.comment.externalId);
-  const replies = externalIds.length
-    ? await db
+  const descendants: Comment[] = [];
+  const seenExternalIds = new Set(externalIds);
+  let frontier = externalIds;
+
+  // O Meta limita a profundidade prática das conversas. Dez níveis também
+  // protegem a leitura contra um ciclo acidental em dados legados.
+  for (let depth = 0; frontier.length > 0 && depth < 10; depth++) {
+    const next: Comment[] = [];
+    for (let start = 0; start < frontier.length; start += 500) {
+      const children = await db
         .select()
         .from(comments)
-        .where(inArray(comments.parentExternalId, externalIds))
+        .where(
+          and(
+            inArray(comments.parentExternalId, frontier.slice(start, start + 500)),
+            eq(comments.deletedOnPlatform, false),
+          ),
+        )
         .orderBy(comments.publishedAt)
-        .all()
-    : [];
+        .all();
+      next.push(...children);
+    }
 
-  const repliesByParent = new Map<string, Comment[]>();
-  for (const reply of replies) {
-    const key = reply.parentExternalId!;
-    const list = repliesByParent.get(key) ?? [];
-    list.push(reply);
-    repliesByParent.set(key, list);
+    frontier = [];
+    for (const reply of next) {
+      if (seenExternalIds.has(reply.externalId)) continue;
+      seenExternalIds.add(reply.externalId);
+      descendants.push(reply);
+      frontier.push(reply.externalId);
+    }
   }
+
+  const commentsByExternalId = new Map(
+    [...rows.map((row) => row.comment), ...descendants].map((comment) => [
+      comment.externalId,
+      comment,
+    ]),
+  );
+  const childrenByParent = new Map<string, Comment[]>();
+  for (const reply of descendants) {
+    if (!reply.parentExternalId) continue;
+    const children = childrenByParent.get(reply.parentExternalId) ?? [];
+    children.push(reply);
+    childrenByParent.set(reply.parentExternalId, children);
+  }
+
+  const repliesForRoot = (rootExternalId: string): InboxReply[] => {
+    const ordered: InboxReply[] = [];
+    const walk = (parentExternalId: string, depth: number) => {
+      for (const reply of childrenByParent.get(parentExternalId) ?? []) {
+        ordered.push({
+          ...reply,
+          threadDepth: depth,
+          replyToAuthorName: commentsByExternalId.get(parentExternalId)?.authorName ?? null,
+        });
+        walk(reply.externalId, depth + 1);
+      }
+    };
+    walk(rootExternalId, 1);
+    return ordered;
+  };
 
   return {
     items: rows.map((row) => ({
       ...row,
-      replies: repliesByParent.get(row.comment.externalId) ?? [],
+      replies: repliesForRoot(row.comment.externalId),
     })),
     total,
     hasMore: (page + 1) * PAGE_SIZE < total,

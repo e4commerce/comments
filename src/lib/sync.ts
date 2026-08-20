@@ -417,28 +417,43 @@ async function reconcileThreadStatuses(postId: string): Promise<void> {
     )
     .all();
 
-  const parents = new Map(
+  const roots = new Map(
     rows
       .filter((row) => !row.parentExternalId && !row.isOwn)
       .map((row) => [row.externalId, row]),
   );
+  const rowsByExternalId = new Map(rows.map((row) => [row.externalId, row]));
   const latestReply = new Map<string, (typeof rows)[number]>();
 
+  const rootExternalIdFor = (row: (typeof rows)[number]): string | null => {
+    let current = row;
+    const visited = new Set([current.externalId]);
+    while (current.parentExternalId && !visited.has(current.parentExternalId)) {
+      visited.add(current.parentExternalId);
+      const parent = rowsByExternalId.get(current.parentExternalId);
+      if (!parent) return null;
+      current = parent;
+    }
+    return roots.has(current.externalId) ? current.externalId : null;
+  };
+
   for (const row of rows) {
-    if (!row.parentExternalId || !parents.has(row.parentExternalId)) continue;
-    const current = latestReply.get(row.parentExternalId);
+    if (!row.parentExternalId) continue;
+    const rootExternalId = rootExternalIdFor(row);
+    if (!rootExternalId) continue;
+    const current = latestReply.get(rootExternalId);
     const rowTime = activityTime(row);
     const currentTime = current ? activityTime(current) : -Infinity;
     // Se o Meta trouxer dois eventos no mesmo segundo, manter a conversa como
     // pendente é mais seguro do que esconder uma resposta do cliente.
     const customerWinsTie = current && rowTime === currentTime && !row.isOwn && current.isOwn;
     if (!current || rowTime > currentTime || customerWinsTie) {
-      latestReply.set(row.parentExternalId, row);
+      latestReply.set(rootExternalId, row);
     }
   }
 
   for (const [externalId, latest] of latestReply) {
-    const parent = parents.get(externalId)!;
+    const parent = roots.get(externalId)!;
     // Arquivamento é uma decisão explícita do operador e não deve ser
     // desfeito a cada reconciliação da mesma thread.
     if (parent.status === 'ignored') continue;

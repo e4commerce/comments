@@ -53,7 +53,7 @@ export function CommentCard({
 }) {
   const { comment, replies, postPermalink, postMessage, accountName } = item;
   const router = useRouter();
-  const [replyOpen, setReplyOpen] = useState(false);
+  const [replyTargetId, setReplyTargetId] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
   const [feedback, setFeedback] = useState<{ ok: boolean; message: string } | null>(null);
   const [exiting, setExiting] = useState(false);
@@ -130,23 +130,65 @@ export function CommentCard({
     });
   }
 
-  function submitReply() {
+  function toggleReplyComposer(targetId: string) {
+    setDraft('');
+    setReplyTargetId((current) => (current === targetId ? null : targetId));
+  }
+
+  function submitReply(targetId: string) {
     const text = draft.trim();
     if (!text) return;
     const leaveAfterSuccess = leavesCurrentCategory('answered');
     startTransition(async () => {
       try {
-        const result = await replyToComment(comment.id, text, !leaveAfterSuccess);
+        const result = await replyToComment(targetId, text, !leaveAfterSuccess);
         setFeedback(result.message ? { ok: result.ok, message: result.message } : null);
         if (result.ok) {
           setDraft('');
-          setReplyOpen(false);
+          setReplyTargetId(null);
           if (leaveAfterSuccess) beginExit();
         }
       } catch (error) {
         handleActionError(error);
       }
     });
+  }
+
+  function replyComposer(targetId: string, targetAuthorName: string | null, compact = false) {
+    return (
+      <div className={compact ? 'mt-3 space-y-2.5' : 'space-y-3 border-t border-line-subtle p-5'}>
+        <p className="text-xs font-medium text-ink-muted">
+          Respondendo a {targetAuthorName ?? 'este comentário'}
+        </p>
+        <textarea
+          value={draft}
+          onChange={(event) => setDraft(event.target.value)}
+          rows={compact ? 2 : 3}
+          autoFocus
+          placeholder="Escreva a resposta que será publicada no Meta…"
+          className="w-full rounded-xl border border-line bg-surface px-4 py-3 text-sm leading-relaxed placeholder:text-ink-muted"
+          onKeyDown={(event) => {
+            // Cmd/Ctrl+Enter envia: o inbox é operado em sequência.
+            if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') submitReply(targetId);
+          }}
+        />
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            size="sm"
+            variant="primary"
+            onClick={() => submitReply(targetId)}
+            disabled={pending || !draft.trim()}
+          >
+            <Send size={13} strokeWidth={1.8} />
+            {pending ? 'Publicando…' : 'Publicar resposta'}
+          </Button>
+          <Button size="sm" variant="ghost" onClick={() => toggleReplyComposer(targetId)} disabled={pending}>
+            Cancelar
+          </Button>
+          <span className="text-xs text-ink-muted">⌘/Ctrl + Enter</span>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -249,7 +291,11 @@ export function CommentCard({
               Respostas na conversa
             </p>
           {replies.map((reply) => (
-              <div key={reply.id} className="border-l-2 border-line-strong pl-3 text-sm">
+              <div
+                key={reply.id}
+                className="border-l-2 border-line-strong pl-3 text-sm"
+                style={{ marginLeft: `${Math.min(Math.max(reply.threadDepth - 1, 0), 3) * 16}px` }}
+              >
               <div className="flex flex-wrap items-center gap-2">
                 <span className={`text-xs font-medium ${reply.isOwn ? 'text-accent' : ''}`}>
                   {reply.isOwn ? 'Você' : (reply.authorName ?? 'Autor desconhecido')}
@@ -257,7 +303,43 @@ export function CommentCard({
                 <RelativeTime value={reply.publishedAt} />
                 {reply.isHidden && <Badge tone="warning">Oculto</Badge>}
               </div>
+              {reply.threadDepth > 1 && (
+                <p className="mt-0.5 text-[11px] text-ink-muted">
+                  Em resposta a {reply.replyToAuthorName ?? 'outro comentário'}
+                </p>
+              )}
               <p className="whitespace-pre-wrap">{reply.message}</p>
+              {!reply.isOwn && (
+                <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => toggleReplyComposer(reply.id)}
+                    disabled={pending}
+                  >
+                    <Reply size={12} strokeWidth={1.8} />
+                    {replyTargetId === reply.id ? 'Cancelar' : 'Responder'}
+                  </Button>
+                  {canLike && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => run(() => toggleLike(reply.id))}
+                      disabled={pending}
+                    >
+                      <Heart
+                        size={12}
+                        strokeWidth={1.8}
+                        fill={reply.likedByUs ? 'currentColor' : 'none'}
+                      />
+                      {reply.likedByUs ? 'Curtido' : 'Curtir'}
+                      {reply.likeCount > 0 ? ` · ${reply.likeCount.toLocaleString('pt-BR')}` : ''}
+                    </Button>
+                  )}
+                </div>
+              )}
+              {replyTargetId === reply.id &&
+                replyComposer(reply.id, reply.authorName ?? 'Autor desconhecido', true)}
             </div>
           ))}
         </div>
@@ -269,17 +351,18 @@ export function CommentCard({
         <Button
           size="sm"
           variant="primary"
-          onClick={() => setReplyOpen((open) => !open)}
+          onClick={() => toggleReplyComposer(comment.id)}
           disabled={pending}
         >
           <Reply size={13} strokeWidth={1.8} />
-          {replyOpen ? 'Cancelar' : 'Responder'}
+          {replyTargetId === comment.id ? 'Cancelar' : 'Responder'}
         </Button>
 
         {canLike && (
           <Button size="sm" onClick={() => run(() => toggleLike(comment.id))} disabled={pending}>
             <Heart size={13} strokeWidth={1.8} fill={comment.likedByUs ? 'currentColor' : 'none'} />
             {comment.likedByUs ? 'Curtido' : 'Curtir'}
+            {comment.likeCount > 0 ? ` · ${comment.likeCount.toLocaleString('pt-BR')}` : ''}
           </Button>
         )}
 
@@ -349,29 +432,7 @@ export function CommentCard({
         </Button>
       </div>
 
-      {replyOpen && (
-        <div className="space-y-3 border-t border-line-subtle p-5">
-          <textarea
-            value={draft}
-            onChange={(event) => setDraft(event.target.value)}
-            rows={3}
-            autoFocus
-            placeholder="Escreva a resposta que será publicada no Meta…"
-            className="w-full rounded-xl border border-line bg-surface px-4 py-3 text-sm leading-relaxed placeholder:text-ink-muted"
-            onKeyDown={(event) => {
-              // Cmd/Ctrl+Enter envia: o inbox é operado em sequência.
-              if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') submitReply();
-            }}
-          />
-          <div className="flex items-center gap-2">
-            <Button size="sm" variant="primary" onClick={submitReply} disabled={pending || !draft.trim()}>
-              <Send size={13} strokeWidth={1.8} />
-              {pending ? 'Publicando…' : 'Publicar resposta'}
-            </Button>
-            <span className="text-xs text-ink-muted">⌘/Ctrl + Enter</span>
-          </div>
-        </div>
-      )}
+      {replyTargetId === comment.id && replyComposer(comment.id, comment.authorName)}
 
       {feedback && (
         <p

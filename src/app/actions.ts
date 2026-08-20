@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
-import { and, count, eq } from 'drizzle-orm';
+import { and, count, eq, sql } from 'drizzle-orm';
 import {
   type Comment,
   accounts,
@@ -88,6 +88,36 @@ async function loadComment(
   };
 }
 
+/**
+ * Encontra o comentário que representa a conversa no inbox.
+ *
+ * Uma ação pode mirar qualquer resposta da árvore, mas `status` pertence sempre
+ * ao comentário de primeiro nível. A busca fica no servidor para o cliente não
+ * conseguir apontar uma raiz de outra conversa.
+ */
+async function loadThreadRoot(comment: Comment): Promise<Comment> {
+  let current = comment;
+  const visited = new Set([current.externalId]);
+
+  while (current.parentExternalId && !visited.has(current.parentExternalId)) {
+    visited.add(current.parentExternalId);
+    const parent = await db
+      .select()
+      .from(comments)
+      .where(
+        and(
+          eq(comments.accountId, comment.accountId),
+          eq(comments.externalId, current.parentExternalId),
+        ),
+      )
+      .get();
+    if (!parent) break;
+    current = parent;
+  }
+
+  return current;
+}
+
 // --- Moderação ---------------------------------------------------------------
 
 export async function replyToComment(
@@ -103,6 +133,7 @@ export async function replyToComment(
   const loaded = await loadComment(commentId);
   if (!loaded) return fail('Comentário não encontrado.');
   const { comment, token, accountExternalId } = loaded;
+  const threadRoot = await loadThreadRoot(comment);
 
   try {
     const replyId = await meta.replyToComment(
@@ -129,10 +160,16 @@ export async function replyToComment(
       syncedAt: new Date(),
     });
 
+    // O alvo ganha uma resposta; a conversa raiz é a que sai de "A responder".
+    // São linhas diferentes ao responder um subcomentário.
     await db
       .update(comments)
-      .set({ status: 'answered', replyCount: comment.replyCount + 1 })
+      .set({ replyCount: sql`${comments.replyCount} + 1` })
       .where(eq(comments.id, comment.id));
+    await db
+      .update(comments)
+      .set({ status: 'answered' })
+      .where(eq(comments.id, threadRoot.id));
 
     await log(comment.externalId, 'reply', 'ok', text.slice(0, 200));
     if (revalidateImmediately) {
@@ -167,7 +204,15 @@ export async function toggleLike(commentId: string): Promise<ActionResult> {
     if (nextLiked) await meta.likeComment(comment.externalId, token);
     else await meta.unlikeComment(comment.externalId, token);
 
-    await db.update(comments).set({ likedByUs: nextLiked }).where(eq(comments.id, comment.id));
+    await db
+      .update(comments)
+      .set({
+        likedByUs: nextLiked,
+        // Reflete a ação imediatamente; o próximo sync reconcilia com o total
+        // autoritativo do Meta.
+        likeCount: Math.max(0, comment.likeCount + (nextLiked ? 1 : -1)),
+      })
+      .where(eq(comments.id, comment.id));
     await log(comment.externalId, nextLiked ? 'like' : 'unlike', 'ok');
     revalidatePath('/inbox');
     return ok(nextLiked ? 'Curtido.' : 'Curtida removida.');
