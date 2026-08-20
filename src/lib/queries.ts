@@ -1,4 +1,17 @@
-import { type SQL, and, count, desc, eq, gte, inArray, isNull, like, ne, sql } from 'drizzle-orm';
+import {
+  type SQL,
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  gte,
+  inArray,
+  isNull,
+  like,
+  ne,
+  sql,
+} from 'drizzle-orm';
 import {
   appSettings,
   type Comment,
@@ -13,6 +26,7 @@ import {
   type CommentFilterRule,
   excludeCommentFilterRules,
 } from './comment-filters';
+import type { InboxSort } from './inbox-sort';
 
 /**
  * Leituras da interface. Ficam juntas aqui para que inbox e dashboard usem
@@ -35,6 +49,7 @@ export interface InboxFilters {
   search?: string;
   /** Só comentários de primeiro nível (esconde respostas de terceiros na fila). */
   topLevelOnly?: boolean;
+  sort?: InboxSort;
   days?: number;
 }
 
@@ -93,6 +108,43 @@ export interface InboxItem {
 
 const PAGE_SIZE = 25;
 
+/**
+ * Atividade da conversa, não apenas a publicação do comentário pai.
+ * Assim uma nova resposta em uma conversa antiga volta ao topo da fila.
+ */
+const lastActivityAt = sql<number>`coalesce(
+  (
+    select max(thread_reply.published_at)
+    from comments as thread_reply
+    where thread_reply.parent_external_id = ${comments.externalId}
+      and thread_reply.deleted_on_platform = 0
+  ),
+  ${comments.publishedAt}
+)`;
+
+function inboxOrderBy(sort: InboxSort = 'priority'): SQL[] {
+  switch (sort) {
+    case 'newest':
+      return [desc(lastActivityAt), desc(comments.publishedAt)];
+    case 'oldest':
+      return [
+        sql`case when ${lastActivityAt} is null then 1 else 0 end`,
+        asc(lastActivityAt),
+        asc(comments.publishedAt),
+      ];
+    case 'most_liked':
+      return [desc(comments.likeCount), desc(lastActivityAt)];
+    case 'most_replied':
+      return [desc(comments.replyCount), desc(lastActivityAt)];
+    case 'priority':
+    default:
+      return [
+        sql`case ${comments.urgency} when 'high' then 0 when 'medium' then 1 when 'low' then 3 else 2 end`,
+        desc(lastActivityAt),
+      ];
+  }
+}
+
 export async function listInbox(
   filters: InboxFilters,
   page = 0,
@@ -117,13 +169,7 @@ export async function listInbox(
     .leftJoin(posts, eq(comments.postId, posts.id))
     .innerJoin(accounts, eq(comments.accountId, accounts.id))
     .where(where)
-    // Urgência antes de recência: um cliente irritado de ontem vem antes de um
-    // emoji de agora. `urgency` nulo (não analisado) cai no meio, não no fim —
-    // não analisado não é o mesmo que sem urgência.
-    .orderBy(
-      sql`case ${comments.urgency} when 'high' then 0 when 'medium' then 1 when 'low' then 3 else 2 end`,
-      desc(comments.publishedAt),
-    )
+    .orderBy(...inboxOrderBy(filters.sort))
     .limit(PAGE_SIZE)
     .offset(page * PAGE_SIZE)
     .all();
@@ -185,9 +231,15 @@ export async function getOverview(days: number): Promise<Overview> {
     ...excludeCommentFilterRules(comments.message, commentFilterRules),
     gte(comments.publishedAt, since),
   )!;
+  // A fila tem uma linha por conversa. Respostas aparecem dentro da thread e
+  // não podem inflar os KPIs como se fossem novos cartões independentes.
   const pendingReply = settings.countHiddenUnanswered
-    ? eq(comments.status, 'new')
-    : and(eq(comments.status, 'new'), eq(comments.isHidden, false))!;
+    ? and(eq(comments.status, 'new'), isNull(comments.parentExternalId))!
+    : and(
+        eq(comments.status, 'new'),
+        eq(comments.isHidden, false),
+        isNull(comments.parentExternalId),
+      )!;
 
   const totals = await db
     .select({
@@ -320,6 +372,7 @@ export async function getAppSettings(): Promise<GlobalAppSettings> {
 
 /** Contagem por status, para os contadores das abas do inbox. */
 export async function countsByStatus(
+  filters: InboxFilters = {},
   commentFilterRules: CommentFilterRule[] = [],
   countHiddenUnanswered?: boolean,
 ): Promise<Record<string, number>> {
@@ -335,7 +388,12 @@ export async function countsByStatus(
       ignored: sql<number>`sum(case when ${comments.status} = 'ignored' then 1 else 0 end)`,
     })
     .from(comments)
-    .where(buildWhere({}, commentFilterRules))
+    .where(
+      buildWhere(
+        { ...filters, status: 'all', sort: undefined, topLevelOnly: true },
+        commentFilterRules,
+      ),
+    )
     .get();
 
   return {

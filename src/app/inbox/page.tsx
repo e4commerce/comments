@@ -6,6 +6,7 @@ import { CommentCard } from '@/components/comment-card';
 import { InboxFilters } from '@/components/inbox-filters';
 import { Badge, EmptyState, PageHeader } from '@/components/ui';
 import { formatNumber } from '@/lib/format';
+import { inboxSortLabel, normalizeInboxSort } from '@/lib/inbox-sort';
 import {
   countsByStatus,
   getAppSettings,
@@ -44,6 +45,8 @@ export default async function InboxPage({ searchParams }: { searchParams: Search
   }
 
   const page = Math.max(0, Number(params.page ?? 0) || 0);
+  const sort = normalizeInboxSort(params.sort);
+  const days = [7, 30, 90].includes(Number(params.days)) ? Number(params.days) : undefined;
   const filters = {
     // O default é a fila de trabalho, não "todos": abrir o inbox deve mostrar o
     // que falta responder.
@@ -57,6 +60,8 @@ export default async function InboxPage({ searchParams }: { searchParams: Search
     // Respostas de terceiros aparecem dentro da thread do comentário pai; na
     // fila elas só duplicariam o item.
     topLevelOnly: true,
+    sort,
+    days,
   };
 
   const [accounts, commentFilters, appSettings] = await Promise.all([
@@ -66,7 +71,7 @@ export default async function InboxPage({ searchParams }: { searchParams: Search
   ]);
   const [{ items, total, hasMore }, counts] = await Promise.all([
     listInbox(filters, page, commentFilters, appSettings.countHiddenUnanswered),
-    countsByStatus(commentFilters, appSettings.countHiddenUnanswered),
+    countsByStatus(filters, commentFilters, appSettings.countHiddenUnanswered),
   ]);
 
   const queryFor = (nextPage: number) => {
@@ -112,7 +117,7 @@ export default async function InboxPage({ searchParams }: { searchParams: Search
           <div className="flex items-center gap-3">
             <span className="h-px flex-1 bg-line-subtle" />
             <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-ink-muted">
-              {formatNumber(total)} comentário(s) · urgência e recência
+              {formatNumber(total)} conversa(s) · {inboxSortLabel(sort).toLocaleLowerCase('pt-BR')}
             </p>
             <span className="h-px flex-1 bg-line-subtle" />
           </div>

@@ -101,7 +101,7 @@ export function DailyVolumeChart({ data }: { data: DailyPoint[] }) {
           viewBox={`0 0 ${width} ${height}`}
           className="h-[220px] w-full min-w-[520px]"
           role="img"
-          aria-label="Comentários por dia, divididos por sentimento"
+          aria-label="Comentários e respostas por dia, divididos por sentimento"
         >
           {/* Grade: hairline sólida, recuada. */}
           {[0, 0.5, 1].map((fraction) => {

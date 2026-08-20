@@ -254,11 +254,31 @@ async function upsertComments(
   since: Date,
 ): Promise<{ inserted: number; updated: number }> {
   // Buscar a publicação inteira é necessário para encontrar comentários novos
-  // em mídia antiga, mas só persistimos a janela configurada. Assim o primeiro
-  // sync correto não inunda inbox e IA com anos de histórico.
-  const relevantRemote = remote.filter(
-    (comment) => !comment.publishedAt || comment.publishedAt >= since,
+  // em mídia antiga. Persistimos a janela configurada e também os pais antigos
+  // necessários para dar contexto a uma resposta recente; sem o pai, a resposta
+  // ficaria invisível porque o inbox exibe uma linha por conversa.
+  const relevantIds = new Set(
+    remote
+      .filter((comment) => !comment.publishedAt || comment.publishedAt >= since)
+      .map((comment) => comment.externalId),
   );
+  const remoteById = new Map(remote.map((comment) => [comment.externalId, comment]));
+  let addedParent = true;
+  while (addedParent) {
+    addedParent = false;
+    for (const id of [...relevantIds]) {
+      const parentId = remoteById.get(id)?.parentExternalId;
+      if (parentId && remoteById.has(parentId) && !relevantIds.has(parentId)) {
+        relevantIds.add(parentId);
+        addedParent = true;
+      }
+    }
+  }
+  const relevantRemote = remote.filter((comment) => relevantIds.has(comment.externalId));
+  const knownWindow = or(isNull(comments.publishedAt), gte(comments.publishedAt, since));
+  const knownScope = relevantIds.size
+    ? or(knownWindow, inArray(comments.externalId, [...relevantIds]))
+    : knownWindow;
   const knownRows = await db
     .select({
       id: comments.id,
@@ -271,7 +291,7 @@ async function upsertComments(
     .where(
       and(
         eq(comments.postId, postId),
-        or(isNull(comments.publishedAt), gte(comments.publishedAt, since)),
+        knownScope,
       ),
     )
     .all();
@@ -358,9 +378,9 @@ async function upsertComments(
     updated++;
   }
 
-  // Um comentário de terceiro que já tem resposta nossa na thread não deveria
-  // seguir como "novo" na fila só porque a resposta foi dada fora daqui.
-  await markAnsweredFromOwnReplies(postId);
+  // O estado pertence à conversa pai: resposta nossa encerra a pendência;
+  // resposta posterior do cliente reabre. Respostas não viram cartões duplicados.
+  await reconcileThreadStatuses(postId);
 
   return { inserted, updated };
 }
@@ -376,34 +396,60 @@ function isOwnComment(account: Account, comment: RemoteComment): boolean {
   return Boolean(ownUsername) && normalizeUsername(comment.authorExternalId) === ownUsername;
 }
 
-/** Marca como respondido todo comentário que tenha uma resposta nossa. */
-async function markAnsweredFromOwnReplies(postId: string): Promise<void> {
-  const ownReplies = await db
-    .select({ parentExternalId: comments.parentExternalId })
+/** Mantém o status do pai de acordo com a última atividade da conversa. */
+async function reconcileThreadStatuses(postId: string): Promise<void> {
+  const rows = await db
+    .select({
+      id: comments.id,
+      externalId: comments.externalId,
+      parentExternalId: comments.parentExternalId,
+      isOwn: comments.isOwn,
+      status: comments.status,
+      publishedAt: comments.publishedAt,
+      createdAt: comments.createdAt,
+    })
     .from(comments)
     .where(
       and(
         eq(comments.postId, postId),
-        eq(comments.isOwn, true),
         eq(comments.deletedOnPlatform, false),
       ),
     )
     .all();
 
-  const parentIds = [
-    ...new Set(
-      ownReplies
-        .map((reply) => reply.parentExternalId)
-        .filter((id): id is string => Boolean(id)),
-    ),
-  ];
+  const parents = new Map(
+    rows
+      .filter((row) => !row.parentExternalId && !row.isOwn)
+      .map((row) => [row.externalId, row]),
+  );
+  const latestReply = new Map<string, (typeof rows)[number]>();
 
-  if (parentIds.length === 0) return;
+  for (const row of rows) {
+    if (!row.parentExternalId || !parents.has(row.parentExternalId)) continue;
+    const current = latestReply.get(row.parentExternalId);
+    const rowTime = activityTime(row);
+    const currentTime = current ? activityTime(current) : -Infinity;
+    // Se o Meta trouxer dois eventos no mesmo segundo, manter a conversa como
+    // pendente é mais seguro do que esconder uma resposta do cliente.
+    const customerWinsTie = current && rowTime === currentTime && !row.isOwn && current.isOwn;
+    if (!current || rowTime > currentTime || customerWinsTie) {
+      latestReply.set(row.parentExternalId, row);
+    }
+  }
 
-  await db
-    .update(comments)
-    .set({ status: 'answered' })
-    .where(and(inArray(comments.externalId, parentIds), eq(comments.status, 'new')));
+  for (const [externalId, latest] of latestReply) {
+    const parent = parents.get(externalId)!;
+    // Arquivamento é uma decisão explícita do operador e não deve ser
+    // desfeito a cada reconciliação da mesma thread.
+    if (parent.status === 'ignored') continue;
+    const nextStatus = latest.isOwn ? 'answered' : 'new';
+    if (parent.status === nextStatus) continue;
+    await db.update(comments).set({ status: nextStatus }).where(eq(comments.id, parent.id));
+  }
+}
+
+function activityTime(row: { publishedAt: Date | null; createdAt: Date }): number {
+  return row.publishedAt?.getTime() ?? row.createdAt.getTime();
 }
 
 async function mapWithConcurrency<T>(

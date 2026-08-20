@@ -2,7 +2,8 @@
 
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useState, useTransition } from 'react';
-import { Search, SlidersHorizontal, X } from 'lucide-react';
+import { ArrowUpDown, Search, SlidersHorizontal, X } from 'lucide-react';
+import { INBOX_SORT_OPTIONS } from '@/lib/inbox-sort';
 import { MOTIVES, SENTIMENTS, SENTIMENT_LABELS, URGENCIES, URGENCY_LABELS } from '@/lib/taxonomy';
 import { selectClass } from './ui';
 
@@ -23,7 +24,7 @@ export function InboxFilters({
 
   function update(key: string, value: string) {
     const next = new URLSearchParams(params.toString());
-    if (!value || value === 'all') next.delete(key);
+    if (!value || value === 'all' || (key === 'sort' && value === 'priority')) next.delete(key);
     else next.set(key, value);
     // Mudar filtro sem voltar à página 1 mostraria "nenhum resultado" numa
     // página que não existe mais.
@@ -32,7 +33,7 @@ export function InboxFilters({
   }
 
   const current = (key: string, fallback = 'all') => params.get(key) ?? fallback;
-  const advancedKeys = ['platform', 'sentiment', 'motive', 'urgency', 'accountId'];
+  const advancedKeys = ['platform', 'sentiment', 'motive', 'urgency', 'accountId', 'days'];
   const advancedCount = advancedKeys.filter((key) => {
     const value = params.get(key);
     return Boolean(value && value !== 'all');
@@ -78,34 +79,56 @@ export function InboxFilters({
           })}
         </div>
 
-        <form
-          onSubmit={(event) => {
-            event.preventDefault();
-            update('search', search);
-          }}
-          className="flex min-w-0 items-center gap-2"
-        >
-          <label className="relative min-w-0 flex-1 lg:w-72">
-            <span className="sr-only">Buscar no texto</span>
-            <Search
+        <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center">
+          <label className="relative min-w-0 sm:w-56">
+            <span className="sr-only">Ordenar comentários</span>
+            <ArrowUpDown
               size={14}
               strokeWidth={1.8}
               className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-muted"
             />
-          <input
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-              placeholder="Buscar nos comentários…"
-              className="w-full rounded-full border border-line bg-surface py-2 pl-9 pr-3 text-sm placeholder:text-ink-muted"
-          />
-        </label>
-        <button
-          type="submit"
-            className="rounded-full border border-line bg-surface px-4 py-2 text-xs font-medium hover:bg-surface-muted"
-        >
-          Buscar
-        </button>
-      </form>
+            <select
+              value={current('sort', 'priority')}
+              onChange={(event) => update('sort', event.target.value)}
+              className="w-full rounded-full border border-line bg-surface py-2 pl-9 pr-8 text-sm text-ink"
+            >
+              {INBOX_SORT_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <form
+            onSubmit={(event) => {
+              event.preventDefault();
+              update('search', search);
+            }}
+            className="flex min-w-0 items-center gap-2"
+          >
+            <label className="relative min-w-0 flex-1 lg:w-72">
+              <span className="sr-only">Buscar no texto</span>
+              <Search
+                size={14}
+                strokeWidth={1.8}
+                className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-muted"
+              />
+              <input
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Buscar nos comentários…"
+                className="w-full rounded-full border border-line bg-surface py-2 pl-9 pr-3 text-sm placeholder:text-ink-muted"
+              />
+            </label>
+            <button
+              type="submit"
+              className="rounded-full border border-line bg-surface px-4 py-2 text-xs font-medium hover:bg-surface-muted"
+            >
+              Buscar
+            </button>
+          </form>
+        </div>
 
       </div>
 
@@ -122,7 +145,7 @@ export function InboxFilters({
         </summary>
 
         <div className="border-t border-line-subtle bg-canvas/55 p-4">
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
             <Select
               label="Plataforma"
               value={current('platform')}
@@ -175,6 +198,18 @@ export function InboxFilters({
                 ]}
               />
             )}
+
+            <Select
+              label="Período"
+              value={current('days')}
+              onChange={(value) => update('days', value)}
+              options={[
+                { value: 'all', label: 'Todo o histórico' },
+                { value: '7', label: 'Últimos 7 dias' },
+                { value: '30', label: 'Últimos 30 dias' },
+                { value: '90', label: 'Últimos 90 dias' },
+              ]}
+            />
           </div>
 
           {advancedCount > 0 && (

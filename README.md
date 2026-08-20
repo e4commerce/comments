@@ -9,10 +9,11 @@ acesso por e-mail.
 
 ## O que ela faz
 
-**Moderação.** Fila ordenada por urgência e depois por recência: o cliente irritado de ontem
-vem antes do emoji de agora. Em cada comentário você responde (a resposta é publicada no Meta),
+**Moderação.** Fila configurável; o padrão prioriza urgência e depois a atividade mais recente,
+mas também permite ordenar por recência, mais antigos, curtidas ou respostas. Em cada comentário
+você responde (a resposta é publicada no Meta),
 curte, oculta, exclui ou arquiva, e vê a thread completa de respostas — as suas e as de
-terceiros. Filtros por situação, plataforma, sentimento, motivo, urgência, conta e busca no
+terceiros. Filtros por situação, plataforma, sentimento, motivo, urgência, conta, período e busca no
 texto, todos na URL: `?sentiment=negative&motive=frete_entrega` é um link que você pode salvar.
 ADMs também podem cadastrar filtros globais por palavra, número ou frase para retirar automações
 da fila e das análises — inclusive da IA — sem excluir ou arquivar os comentários no Meta.

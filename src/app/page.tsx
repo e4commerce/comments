@@ -111,7 +111,7 @@ export default async function DashboardPage({
       {/* KPIs. Números que respondem "preciso agir agora?" antes dos gráficos. */}
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatTile
-          label="Comentários no período"
+          label="Comentários e respostas"
           value={formatNumber(overview.total)}
           icon={MessageSquareText}
         />
@@ -119,14 +119,14 @@ export default async function DashboardPage({
           label="A responder"
           value={formatNumber(overview.pendingReply)}
           icon={Inbox}
-          href="/inbox?status=new"
+          href={`/inbox?status=new&days=${days}`}
         />
         <StatTile
           label="Urgentes sem resposta"
           value={formatNumber(overview.highUrgency)}
           icon={Siren}
           tone={overview.highUrgency > 0 ? 'negative' : undefined}
-          href="/inbox?status=new&urgency=high"
+          href={`/inbox?status=new&urgency=high&days=${days}`}
         />
         <StatTile
           label="Perguntas"
@@ -141,8 +141,8 @@ export default async function DashboardPage({
           title="Volumetria diária"
           description={
             <>
-            Pela data em que o comentário foi publicado, no horário de São Paulo. Dias sem
-            comentário aparecem como zero.
+            Cada comentário ou resposta de cliente conta como uma interação. A caixa agrupa essas
+            respostas dentro da conversa. Horário de São Paulo.
             </>
           }
         />
@@ -173,7 +173,10 @@ export default async function DashboardPage({
               </>
             }
           />
-          <MotiveBars motives={overview.motives} hrefBase="/inbox?status=all&motive=" />
+          <MotiveBars
+            motives={overview.motives}
+            hrefBase={`/inbox?status=all&days=${days}&motive=`}
+          />
         </Card>
       </div>
 
