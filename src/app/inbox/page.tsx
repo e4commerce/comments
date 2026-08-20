@@ -130,7 +130,12 @@ export default async function InboxPage({ searchParams }: { searchParams: Search
               </div>
               <div className="-mb-4">
                 {items.map((item) => (
-                  <CommentCard key={item.comment.id} item={item} activeStatus={status} />
+                  <CommentCard
+                    key={item.comment.id}
+                    item={item}
+                    activeStatus={status}
+                    countHiddenUnanswered={appSettings.countHiddenUnanswered}
+                  />
                 ))}
               </div>
             </>

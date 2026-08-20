@@ -178,7 +178,10 @@ export async function toggleLike(commentId: string): Promise<ActionResult> {
   }
 }
 
-export async function toggleHide(commentId: string): Promise<ActionResult> {
+export async function toggleHide(
+  commentId: string,
+  revalidateImmediately = true,
+): Promise<ActionResult> {
   await requireSession();
 
   const loaded = await loadComment(commentId);
@@ -195,8 +198,10 @@ export async function toggleHide(commentId: string): Promise<ActionResult> {
     );
     await db.update(comments).set({ isHidden: nextHidden }).where(eq(comments.id, comment.id));
     await log(comment.externalId, nextHidden ? 'hide' : 'unhide', 'ok');
-    revalidatePath('/');
-    revalidatePath('/inbox');
+    if (revalidateImmediately) {
+      revalidatePath('/');
+      revalidatePath('/inbox');
+    }
     return ok(nextHidden ? 'Comentário oculto.' : 'Comentário reexibido.');
   } catch (error) {
     const detail = explain(error, nextHidden ? 'ocultar' : 'reexibir');

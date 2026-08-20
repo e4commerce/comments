@@ -45,9 +45,11 @@ export type InboxStatus = 'new' | 'answered' | 'ignored' | 'all';
 export function CommentCard({
   item,
   activeStatus,
+  countHiddenUnanswered,
 }: {
   item: InboxItem;
   activeStatus: InboxStatus;
+  countHiddenUnanswered: boolean;
 }) {
   const { comment, replies, postPermalink, postMessage, accountName } = item;
   const router = useRouter();
@@ -57,6 +59,7 @@ export function CommentCard({
   const [exiting, setExiting] = useState(false);
   const [pending, startTransition] = useTransition();
   const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const exitFrame = useRef<number | null>(null);
   const refreshStarted = useRef(false);
 
   const canLike = comment.platform === 'facebook';
@@ -64,6 +67,7 @@ export function CommentCard({
   useEffect(
     () => () => {
       if (refreshTimer.current) clearTimeout(refreshTimer.current);
+      if (exitFrame.current !== null) cancelAnimationFrame(exitFrame.current);
     },
     [],
   );
@@ -80,10 +84,15 @@ export function CommentCard({
   }
 
   function beginExit() {
-    setExiting(true);
-    // Fallback para navegadores que não disparem transitionend (ou se a aba
-    // perder foco no meio da animação).
-    refreshTimer.current = setTimeout(refreshAfterExit, 440);
+    // A atualização visual fica fora da transition assíncrona da Server Action.
+    // Isso garante um frame real entre o resultado confirmado e o início da
+    // animação, em vez de o React poder agrupar saída e refresh.
+    exitFrame.current = requestAnimationFrame(() => {
+      setExiting(true);
+      // Fallback para navegadores que não disparem transitionend (ou se a aba
+      // perder foco no meio da animação).
+      refreshTimer.current = setTimeout(refreshAfterExit, 700);
+    });
   }
 
   function handleActionError(error: unknown) {
@@ -142,12 +151,9 @@ export function CommentCard({
 
   return (
     <div
-      className={`comment-card-shell grid origin-top transition-[grid-template-rows,opacity,transform] duration-[360ms] ease-[cubic-bezier(0.22,1,0.36,1)] ${
-        exiting
-          ? 'grid-rows-[0fr] -translate-y-2 scale-[0.985] opacity-0'
-          : 'grid-rows-[1fr] translate-y-0 scale-100 opacity-100'
-      }`}
+      className="comment-card-shell"
       data-comment-id={comment.id}
+      data-exiting={exiting ? 'true' : 'false'}
       aria-hidden={exiting}
       inert={exiting ? true : undefined}
       onTransitionEnd={(event) => {
@@ -160,7 +166,7 @@ export function CommentCard({
         }
       }}
     >
-      <div className="min-h-0 overflow-hidden pb-4">
+      <div className="min-h-0 overflow-hidden">
         <Card className="overflow-hidden p-0 transition-colors hover:border-line">
       <div className="space-y-4 p-5">
         {/* Cabeçalho: quem, quando, onde */}
@@ -277,7 +283,15 @@ export function CommentCard({
           </Button>
         )}
 
-        <Button size="sm" onClick={() => run(() => toggleHide(comment.id))} disabled={pending}>
+        <Button
+          size="sm"
+          onClick={() => {
+            const leaveAfterSuccess =
+              activeStatus === 'new' && !comment.isHidden && !countHiddenUnanswered;
+            run(() => toggleHide(comment.id, !leaveAfterSuccess), { leaveAfterSuccess });
+          }}
+          disabled={pending}
+        >
           {comment.isHidden ? <Eye size={13} strokeWidth={1.8} /> : <EyeOff size={13} strokeWidth={1.8} />}
           {comment.isHidden ? 'Reexibir' : 'Ocultar'}
         </Button>
