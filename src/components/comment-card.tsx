@@ -86,15 +86,38 @@ export function CommentCard({
     refreshTimer.current = setTimeout(refreshAfterExit, 440);
   }
 
+  function handleActionError(error: unknown) {
+    const message = error instanceof Error ? error.message : '';
+
+    // Uma aba aberta durante um deploy ainda aponta para os IDs das Server
+    // Actions do build anterior. O servidor novo responde fora do protocolo
+    // esperado pelo cliente antigo; sem este catch, o React derruba a página
+    // inteira. Um reload completo sincroniza os dois builds e também confirma
+    // o estado real caso a ação tenha chegado a ser processada.
+    if (message.includes('An unexpected response was received from the server')) {
+      window.location.reload();
+      return;
+    }
+
+    setFeedback({
+      ok: false,
+      message: 'Não foi possível concluir a ação. Recarregue a página e tente novamente.',
+    });
+  }
+
   function run(
     action: () => Promise<{ ok: boolean; message?: string }>,
     options: { confirmText?: string; leaveAfterSuccess?: boolean } = {},
   ) {
     if (options.confirmText && !window.confirm(options.confirmText)) return;
     startTransition(async () => {
-      const result = await action();
-      setFeedback(result.message ? { ok: result.ok, message: result.message } : null);
-      if (result.ok && options.leaveAfterSuccess) beginExit();
+      try {
+        const result = await action();
+        setFeedback(result.message ? { ok: result.ok, message: result.message } : null);
+        if (result.ok && options.leaveAfterSuccess) beginExit();
+      } catch (error) {
+        handleActionError(error);
+      }
     });
   }
 
@@ -103,12 +126,16 @@ export function CommentCard({
     if (!text) return;
     const leaveAfterSuccess = leavesCurrentCategory('answered');
     startTransition(async () => {
-      const result = await replyToComment(comment.id, text, !leaveAfterSuccess);
-      setFeedback(result.message ? { ok: result.ok, message: result.message } : null);
-      if (result.ok) {
-        setDraft('');
-        setReplyOpen(false);
-        if (leaveAfterSuccess) beginExit();
+      try {
+        const result = await replyToComment(comment.id, text, !leaveAfterSuccess);
+        setFeedback(result.message ? { ok: result.ok, message: result.message } : null);
+        if (result.ok) {
+          setDraft('');
+          setReplyOpen(false);
+          if (leaveAfterSuccess) beginExit();
+        }
+      } catch (error) {
+        handleActionError(error);
       }
     });
   }
