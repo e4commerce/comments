@@ -24,8 +24,17 @@ export function InboxFilters({
 
   function update(key: string, value: string) {
     const next = new URLSearchParams(params.toString());
-    if (!value || value === 'all' || (key === 'sort' && value === 'priority')) next.delete(key);
-    else next.set(key, value);
+    // `status` é diferente dos demais filtros: sem parâmetro, o inbox abre na
+    // fila "A responder". Portanto, "Todos" precisa continuar explícito na URL.
+    if (
+      !value ||
+      (value === 'all' && key !== 'status') ||
+      (key === 'sort' && value === 'priority')
+    ) {
+      next.delete(key);
+    } else {
+      next.set(key, value);
+    }
     // Mudar filtro sem voltar à página 1 mostraria "nenhum resultado" numa
     // página que não existe mais.
     next.delete('page');
