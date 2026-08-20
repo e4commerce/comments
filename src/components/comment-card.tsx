@@ -336,6 +336,19 @@ export function CommentCard({
                       {reply.likeCount > 0 ? ` · ${reply.likeCount.toLocaleString('pt-BR')}` : ''}
                     </Button>
                   )}
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => run(() => toggleHide(reply.id))}
+                    disabled={pending}
+                  >
+                    {reply.isHidden ? (
+                      <Eye size={12} strokeWidth={1.8} />
+                    ) : (
+                      <EyeOff size={12} strokeWidth={1.8} />
+                    )}
+                    {reply.isHidden ? 'Reexibir' : 'Ocultar'}
+                  </Button>
                 </div>
               )}
               {replyTargetId === reply.id &&
